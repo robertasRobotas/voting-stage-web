@@ -6,12 +6,13 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { getOrCreateAnonToken } from "@/lib/anon-token";
 import { EUROVISION_POINTS, type EurovisionPoint, type VotingDto } from "@/lib/types";
+import { Ballot } from "./ballot";
 
 interface Props {
   shareId: string;
 }
 
-type Allocation = Record<string, EurovisionPoint | undefined>;
+export type Allocation = Record<string, EurovisionPoint | undefined>;
 
 export function VotePageClient({ shareId }: Props) {
   const { token, user, ready } = useAuth();
@@ -61,32 +62,6 @@ export function VotePageClient({ shareId }: Props) {
       cancelled = true;
     };
   }, [voting, token, user, shareId]);
-
-  const assignPoint = useCallback((itemId: string, points: EurovisionPoint | undefined) => {
-    setAllocation((prev) => {
-      const next: Allocation = { ...prev };
-      // Each point value is used at most once → clear it from any other item.
-      if (points !== undefined) {
-        for (const id of Object.keys(next)) {
-          if (next[id] === points) delete next[id];
-        }
-      }
-      if (points === undefined) delete next[itemId];
-      else next[itemId] = points;
-      return next;
-    });
-  }, []);
-
-  const usedPoints = useMemo(() => {
-    const used = new Set<EurovisionPoint>();
-    for (const v of Object.values(allocation)) if (v !== undefined) used.add(v);
-    return used;
-  }, [allocation]);
-
-  const remainingPoints = useMemo(
-    () => EUROVISION_POINTS.filter((p) => !usedPoints.has(p)),
-    [usedPoints],
-  );
 
   async function onSubmit() {
     if (!voting) return;
@@ -171,8 +146,8 @@ export function VotePageClient({ shareId }: Props) {
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700 }}>Cast your vote</h2>
             <p className="small muted">
-              Pick a point value from <strong>{EUROVISION_POINTS.join(", ")}</strong> for each item
-              you want to score. Each value can be used at most once. Items left blank get 0.
+              Drag points from the tray onto items. Each value (1, 2, 3, 4, 5, 6, 7, 8, 10, 12)
+              can be used at most once. Tap a placed point to send it back to the tray.
             </p>
           </div>
 
@@ -190,41 +165,7 @@ export function VotePageClient({ shareId }: Props) {
             </div>
           )}
 
-          <PointsLegend remaining={remainingPoints} />
-
-          <ul className="stack" style={{ listStyle: "none", gap: 10 }}>
-            {voting.items.map((item) => (
-              <li
-                key={item.id}
-                className="row"
-                style={{
-                  gap: 12,
-                  border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  padding: 10,
-                  background: "var(--background)",
-                }}
-              >
-                {item.imageUrl && (
-                  // Plain <img> avoids the next/image remotePatterns config dance.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.imageUrl}
-                    alt=""
-                    width={56}
-                    height={56}
-                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8 }}
-                  />
-                )}
-                <div style={{ flex: 1, fontWeight: 500 }}>{item.title}</div>
-                <PointPicker
-                  value={allocation[item.id]}
-                  used={usedPoints}
-                  onChange={(p) => assignPoint(item.id, p)}
-                />
-              </li>
-            ))}
-          </ul>
+          <Ballot items={voting.items} value={allocation} onChange={setAllocation} />
 
           {submitError && <div className="error">{submitError}</div>}
 
@@ -297,64 +238,4 @@ function StatusBadge({ status }: { status: VotingDto["status"] }) {
   );
 }
 
-function PointsLegend({ remaining }: { remaining: readonly EurovisionPoint[] }) {
-  return (
-    <div className="row" style={{ gap: 6 }}>
-      <span className="small muted">Remaining:</span>
-      {EUROVISION_POINTS.map((p) => {
-        const available = remaining.includes(p);
-        return (
-          <span
-            key={p}
-            style={{
-              display: "inline-flex",
-              width: 32,
-              height: 32,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 13,
-              fontWeight: 700,
-              background: available ? (p === 12 ? "var(--accent)" : "var(--card)") : "transparent",
-              color: available ? (p === 12 ? "#111" : "var(--foreground)") : "var(--muted)",
-              border: "1px solid var(--border)",
-              opacity: available ? 1 : 0.4,
-              textDecoration: available ? "none" : "line-through",
-            }}
-          >
-            {p}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function PointPicker({
-  value,
-  used,
-  onChange,
-}: {
-  value: EurovisionPoint | undefined;
-  used: Set<EurovisionPoint>;
-  onChange: (p: EurovisionPoint | undefined) => void;
-}) {
-  return (
-    <select
-      className="select"
-      style={{ width: 96 }}
-      value={value ?? ""}
-      onChange={(e) => {
-        const v = e.target.value;
-        onChange(v === "" ? undefined : (Number(v) as EurovisionPoint));
-      }}
-    >
-      <option value="">—</option>
-      {EUROVISION_POINTS.map((p) => (
-        <option key={p} value={p} disabled={used.has(p) && value !== p}>
-          {p}
-        </option>
-      ))}
-    </select>
-  );
-}
+export { EUROVISION_POINTS };
