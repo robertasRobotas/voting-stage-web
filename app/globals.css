@@ -153,3 +153,49 @@ a:hover { text-decoration: underline; }
 @media (prefers-color-scheme: dark) {
   html { color-scheme: dark; }
 }
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--card) 0%,
+    rgba(0,0,0,0.04) 50%,
+    var(--card) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-color-scheme: dark) {
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--card) 0%,
+      rgba(255,255,255,0.05) 50%,
+      var(--card) 100%
+    );
+    background-size: 200% 100%;
+  }
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Tighter point chips on small screens so 10 fit in one row. */
+@media (max-width: 520px) {
+  .chip-tray { gap: 4px !important; }
+  .chip-tray .chip { width: 34px !important; height: 34px !important; font-size: 13px !important; }
+}
+
+/* Tiny icon button (used for item reorder up/down). */
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--foreground);
+}
+.icon-btn:hover { background: var(--card); }
+.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }

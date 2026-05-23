@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import type { VotingDto } from "@/lib/types";
+import { Skeleton } from "@/app/components/skeleton";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -48,7 +49,19 @@ export default function DashboardPage() {
 
       {error && <div className="error">{error}</div>}
 
-      {items === null && !error && <p className="muted">Loading boards…</p>}
+      {items === null && !error && (
+        <div className="stack" style={{ gap: 12 }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card row" style={{ padding: 16, justifyContent: "space-between" }}>
+              <div className="stack" style={{ gap: 6, flex: 1 }}>
+                <Skeleton height={18} width="40%" />
+                <Skeleton height={12} width="60%" />
+              </div>
+              <Skeleton height={36} width={120} radius={8} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {items && items.length === 0 && (
         <div className="card stack" style={{ alignItems: "flex-start", gap: 12 }}>

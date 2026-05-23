@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import type { VotingAccess, VotingDto } from "@/lib/types";
+import { ImagePicker } from "@/app/components/image-picker";
 
 interface DraftItem {
   key: string;
@@ -171,13 +172,12 @@ export default function NewVotingPage() {
                   maxLength={200}
                 />
               </div>
-              <div style={{ flex: 3 }}>
-                <label className="label small">Image URL (optional)</label>
-                <input
-                  className="input"
-                  placeholder="https://…"
+              <div style={{ flex: 3, minWidth: 0 }}>
+                <label className="label small">Image (optional)</label>
+                <ImagePicker
                   value={it.imageUrl}
-                  onChange={(e) => updateItem(it.key, { imageUrl: e.target.value })}
+                  onChange={(url) => updateItem(it.key, { imageUrl: url })}
+                  compact
                 />
               </div>
               <button

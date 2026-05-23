@@ -25,6 +25,8 @@ export interface VotingDto {
   createdAt: string;
   canVote?: boolean;
   results?: VotingResults;
+  /** Owner-only / finished-voting only: who voted and what they assigned. */
+  voters?: VoterRecord[];
 }
 
 export interface VotingResults {
@@ -35,4 +37,22 @@ export interface VotingResults {
     voteCount: number;
     pointsBreakdown: Record<string, number>;
   }>;
+}
+
+export interface VoterRecord {
+  voteId: string;
+  voterName?: string;
+  voterEmail?: string;
+  isSignedIn: boolean;
+  isAnonymous: boolean;
+  allocations: Array<{ itemId: string; points: number }>;
+  castAt: string;
+}
+
+export interface MyVoteResponse {
+  voted: boolean;
+  allocations: Array<{ itemId: string; points: EurovisionPoint }>;
+  voterName?: string;
+  castAt?: string;
+  updatedAt?: string;
 }

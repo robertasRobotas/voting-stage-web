@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { getOrCreateAnonToken } from "@/lib/anon-token";
-import { EUROVISION_POINTS, type EurovisionPoint, type VotingDto } from "@/lib/types";
+import {
+  EUROVISION_POINTS,
+  type EurovisionPoint,
+  type MyVoteResponse,
+  type VotingDto,
+} from "@/lib/types";
 import { Ballot } from "./ballot";
+import { SkeletonRow, Skeleton } from "@/app/components/skeleton";
 
 interface Props {
   shareId: string;
@@ -20,10 +26,15 @@ export function VotePageClient({ shareId }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [allocation, setAllocation] = useState<Allocation>({});
   const [voterName, setVoterName] = useState("");
-  const [hasVoted, setHasVoted] = useState<boolean | null>(null);
+  /** null = haven't checked yet; "fresh" = no prior vote; "resumed" = ballot
+   *  prefilled from a previous submission. */
+  const [voteState, setVoteState] = useState<"loading" | "fresh" | "resumed" | "submitted">(
+    "loading",
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  /** Becomes true after a successful submit, regardless of fresh/resumed. */
+  const [confirmation, setConfirmation] = useState<"none" | "saved" | "updated">("none");
 
   // Reload board metadata whenever sign-in state settles, so server-side
   // `canVote`/`isOwner` flags reflect the current viewer.
@@ -43,27 +54,37 @@ export function VotePageClient({ shareId }: Props) {
     };
   }, [shareId, token, ready]);
 
-  // Check if this browser/user has already cast a vote on this board.
+  // After the board loads, fetch this viewer's prior vote (if any) and prefill
+  // the ballot so they can review or edit it.
   useEffect(() => {
     if (!voting) return;
     let cancelled = false;
     const anonToken = user ? null : getOrCreateAnonToken(shareId);
-    api<{ voted: boolean }>(`/votings/${voting.id}/votes/mine`, {
+    api<MyVoteResponse>(`/votings/${voting.id}/votes/mine`, {
       token,
       anonToken,
     })
       .then((r) => {
-        if (!cancelled) setHasVoted(r.voted);
+        if (cancelled) return;
+        if (r.voted && r.allocations.length > 0) {
+          const prefilled: Allocation = {};
+          for (const a of r.allocations) prefilled[a.itemId] = a.points;
+          setAllocation(prefilled);
+          if (r.voterName) setVoterName(r.voterName);
+          setVoteState("resumed");
+        } else {
+          setVoteState("fresh");
+        }
       })
       .catch(() => {
-        if (!cancelled) setHasVoted(false);
+        if (!cancelled) setVoteState("fresh");
       });
     return () => {
       cancelled = true;
     };
   }, [voting, token, user, shareId]);
 
-  async function onSubmit() {
+  const onSubmit = useCallback(async () => {
     if (!voting) return;
     const allocations = Object.entries(allocation)
       .filter(([, p]) => p !== undefined)
@@ -76,6 +97,7 @@ export function VotePageClient({ shareId }: Props) {
     setSubmitting(true);
     try {
       const anonToken = user ? null : getOrCreateAnonToken(shareId);
+      const wasResumed = voteState === "resumed";
       await api(`/votings/${voting.id}/votes`, {
         method: "POST",
         token,
@@ -85,20 +107,37 @@ export function VotePageClient({ shareId }: Props) {
           allocations,
         },
       });
-      setSubmitted(true);
-      setHasVoted(true);
+      setVoteState("submitted");
+      setConfirmation(wasResumed ? "updated" : "saved");
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Submitting failed");
     } finally {
       setSubmitting(false);
     }
-  }
+  }, [voting, allocation, user, voterName, voteState, token, shareId]);
 
   if (loadError) return <div className="error">{loadError}</div>;
-  if (!voting) return <p className="muted">Loading…</p>;
+
+  if (!voting) {
+    return (
+      <div className="stack" style={{ gap: 16, maxWidth: 820 }}>
+        <Skeleton height={28} width={280} />
+        <SkeletonRow lines={2} />
+        <div className="card stack" style={{ gap: 8 }}>
+          <Skeleton height={20} width={160} />
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+        </div>
+      </div>
+    );
+  }
 
   const closed = voting.status === "FINISHED";
-  const canVote = !closed && voting.canVote !== false && !hasVoted;
+  const ballotShown =
+    !closed &&
+    voting.canVote !== false &&
+    (voteState === "fresh" || voteState === "resumed" || voteState === "submitted");
   const needsSignIn = voting.access === "INVITE_ONLY" && !user;
 
   return (
@@ -126,34 +165,57 @@ export function VotePageClient({ shareId }: Props) {
       {!closed && needsSignIn && (
         <div className="card stack" style={{ gap: 8 }}>
           <strong>This board is invite-only.</strong>
-          <p className="muted small">Sign in with the email that was invited to cast your vote.</p>
-          <Link href={`/login?next=/v/${voting.shareId}`} className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+          <p className="muted small">
+            Sign in with the email that was invited to cast your vote.
+          </p>
+          <Link
+            href={`/login?next=/v/${voting.shareId}`}
+            className="btn btn-primary"
+            style={{ alignSelf: "flex-start" }}
+          >
             Sign in
           </Link>
         </div>
       )}
 
-      {!closed && !needsSignIn && hasVoted && !submitted && (
-        <div className="success">You&apos;ve already voted on this board. Results will appear when the creator finishes the voting.</div>
+      {voteState === "resumed" && confirmation === "none" && !closed && (
+        <div className="card" style={{ borderColor: "var(--primary)" }}>
+          <strong>Welcome back.</strong>{" "}
+          <span className="muted small">
+            Your previous ballot is loaded. Adjust it and submit again to update — or leave it as
+            is.
+          </span>
+        </div>
       )}
 
-      {submitted && (
-        <div className="success">Thanks — your points are in! 🎤</div>
+      {confirmation === "saved" && <div className="success">Thanks — your points are in! 🎤</div>}
+      {confirmation === "updated" && (
+        <div className="success">Ballot updated. You can change it again any time before the board closes.</div>
       )}
 
-      {canVote && !needsSignIn && (
+      {voteState === "loading" && !closed && !needsSignIn && (
+        <div className="card">
+          <SkeletonRow lines={3} />
+        </div>
+      )}
+
+      {ballotShown && !needsSignIn && (
         <section className="card stack" style={{ gap: 16 }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700 }}>Cast your vote</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 700 }}>
+              {voteState === "resumed" || voteState === "submitted" ? "Your ballot" : "Cast your vote"}
+            </h2>
             <p className="small muted">
-              Drag points from the tray onto items. Each value (1, 2, 3, 4, 5, 6, 7, 8, 10, 12)
-              can be used at most once. Tap a placed point to send it back to the tray.
+              Drag points from the tray onto items. Each value (1, 2, 3, 4, 5, 6, 7, 8, 10, 12) can
+              be used at most once. Tap a placed point to send it back to the tray.
             </p>
           </div>
 
           {!user && (
             <div>
-              <label className="label" htmlFor="voterName">Your name (optional)</label>
+              <label className="label" htmlFor="voterName">
+                Your name (optional)
+              </label>
               <input
                 id="voterName"
                 className="input"
@@ -170,48 +232,159 @@ export function VotePageClient({ shareId }: Props) {
           {submitError && <div className="error">{submitError}</div>}
 
           <div className="row" style={{ justifyContent: "flex-end" }}>
-            <button className="btn btn-primary" onClick={() => void onSubmit()} disabled={submitting}>
-              {submitting ? "Submitting…" : "Submit ballot"}
+            <button
+              className="btn btn-primary"
+              onClick={() => void onSubmit()}
+              disabled={submitting}
+            >
+              {submitting
+                ? "Submitting…"
+                : voteState === "resumed" || voteState === "submitted"
+                  ? "Update my ballot"
+                  : "Submit ballot"}
             </button>
           </div>
         </section>
       )}
 
       {voting.results && (
-        <section className="card stack" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>
-            Results <span className="muted small">({voting.results.totalVotes} {voting.results.totalVotes === 1 ? "ballot" : "ballots"})</span>
-          </h2>
-          {voting.results.perItem.length === 0 ? (
-            <p className="muted">No votes yet.</p>
-          ) : (
-            <ol className="stack" style={{ listStyle: "none", gap: 8 }}>
-              {voting.results.perItem.map((row, idx) => {
-                const item = voting.items.find((i) => i.id === row.itemId);
-                return (
-                  <li
-                    key={row.itemId}
-                    className="row"
-                    style={{
-                      gap: 12,
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      background: idx === 0 ? "var(--accent)" : "var(--card)",
-                      color: idx === 0 ? "#111" : undefined,
-                    }}
-                  >
-                    <strong style={{ width: 28 }}>{idx + 1}.</strong>
-                    <span style={{ flex: 1 }}>{item?.title ?? row.itemId}</span>
-                    <strong>{row.totalPoints} pts</strong>
-                    <span className="small muted">· {row.voteCount} votes</span>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </section>
+        <ResultsSection voting={voting} />
       )}
     </div>
+  );
+}
+
+function ResultsSection({ voting }: { voting: VotingDto }) {
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const results = voting.results!;
+  return (
+    <section className="card stack" style={{ gap: 12 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700 }}>
+        Results{" "}
+        <span className="muted small">
+          ({results.totalVotes} {results.totalVotes === 1 ? "ballot" : "ballots"})
+        </span>
+      </h2>
+      {results.perItem.length === 0 ? (
+        <p className="muted">No votes yet.</p>
+      ) : (
+        <ol className="stack" style={{ listStyle: "none", gap: 8 }}>
+          {results.perItem.map((row, idx) => {
+            const item = voting.items.find((i) => i.id === row.itemId);
+            const expanded = expandedItemId === row.itemId;
+            return (
+              <li
+                key={row.itemId}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  background: idx === 0 ? "var(--accent)" : "var(--card)",
+                  color: idx === 0 ? "#111" : undefined,
+                }}
+              >
+                <button
+                  type="button"
+                  className="row"
+                  onClick={() =>
+                    setExpandedItemId((cur) => (cur === row.itemId ? null : row.itemId))
+                  }
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    width: "100%",
+                    color: "inherit",
+                    padding: 0,
+                    gap: 12,
+                  }}
+                >
+                  <strong style={{ width: 28 }}>{idx + 1}.</strong>
+                  <span style={{ flex: 1, textAlign: "left" }}>
+                    {item?.title ?? row.itemId}
+                  </span>
+                  <strong>{row.totalPoints} pts</strong>
+                  <span className="small muted">· {row.voteCount} votes</span>
+                  <span aria-hidden style={{ marginLeft: 6 }}>
+                    {expanded ? "▾" : "▸"}
+                  </span>
+                </button>
+                {expanded && (
+                  <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    {Object.entries(row.pointsBreakdown)
+                      .sort(([a], [b]) => Number(b) - Number(a))
+                      .map(([pts, count]) => (
+                        <span
+                          key={pts}
+                          className="small"
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background: "rgba(0,0,0,0.08)",
+                          }}
+                        >
+                          {count}× {pts}pt
+                        </span>
+                      ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {voting.voters && voting.voters.length > 0 && (
+        <details>
+          <summary className="small muted" style={{ cursor: "pointer" }}>
+            See per-voter ballots ({voting.voters.length})
+          </summary>
+          <div className="stack" style={{ gap: 8, marginTop: 8 }}>
+            {voting.voters.map((v) => (
+              <div
+                key={v.voteId}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: 8,
+                  background: "var(--background)",
+                }}
+              >
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 600 }}>
+                    {v.voterName ?? v.voterEmail ?? (v.isAnonymous ? "Anonymous" : "Voter")}
+                  </span>
+                  <span className="small muted">
+                    {new Date(v.castAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="row" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                  {v.allocations
+                    .slice()
+                    .sort((a, b) => b.points - a.points)
+                    .map((a) => {
+                      const item = voting.items.find((i) => i.id === a.itemId);
+                      return (
+                        <span
+                          key={a.itemId}
+                          className="small"
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background: "var(--card)",
+                            border: "1px solid var(--border)",
+                          }}
+                        >
+                          <strong>{a.points}</strong> · {item?.title ?? a.itemId}
+                        </span>
+                      );
+                    })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
   );
 }
 

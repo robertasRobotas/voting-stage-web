@@ -161,7 +161,10 @@ function Tray({
       <div className="small muted" style={{ marginBottom: 8 }}>
         Points tray — drag onto an item, drop back here to remove
       </div>
-      <div className="row" style={{ gap: 8, flexWrap: "wrap", minHeight: 48 }}>
+      <div
+        className="row chip-tray"
+        style={{ gap: 8, flexWrap: "wrap", minHeight: 48 }}
+      >
         {EUROVISION_POINTS.map((p) =>
           remaining.includes(p) ? (
             <DraggableChip
@@ -279,7 +282,11 @@ function chipStyle(points: EurovisionPoint, opts?: { dragging?: boolean; faded?:
 }
 
 function ChipVisual({ points, dragging }: { points: EurovisionPoint; dragging?: boolean }) {
-  return <div style={chipStyle(points, { dragging })}>{points}</div>;
+  return (
+    <div className="chip" style={chipStyle(points, { dragging })}>
+      {points}
+    </div>
+  );
 }
 
 function DraggableChip({
@@ -299,6 +306,7 @@ function DraggableChip({
   return (
     <button
       type="button"
+      className="chip"
       ref={setNodeRef}
       onClick={onClick}
       title={title ?? `${points} points — drag onto an item`}
@@ -320,6 +328,7 @@ function ChipPlaceholder({ points }: { points: EurovisionPoint }) {
   return (
     <div
       aria-hidden
+      className="chip"
       style={{
         width: CHIP_SIZE,
         height: CHIP_SIZE,
