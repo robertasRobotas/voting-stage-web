@@ -1,10 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
+// Wrapper exists only to provide the Suspense boundary that `useSearchParams`
+// requires when the page is prerendered.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <div style={{ maxWidth: 420, margin: "40px auto" }}>
+      <div className="card" style={{ minHeight: 220 }} />
+    </div>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next") ?? "/dashboard";
