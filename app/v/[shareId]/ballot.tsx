@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -130,7 +130,7 @@ export function Ballot({ items, value, onChange }: BallotProps) {
 
       {/* Floating preview that follows the pointer while dragging. */}
       <DragOverlay dropAnimation={null}>
-        {draggingPoints !== null ? <ChipVisual points={draggingPoints} dragging /> : null}
+        {draggingPoints !== null ? <Chip points={draggingPoints} dragging /> : null}
       </DragOverlay>
     </DndContext>
   );
@@ -148,33 +148,23 @@ function Tray({
   const { setNodeRef, isOver } = useDroppable({ id: dropTargetId("tray") });
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{
-        border: `2px dashed ${isOver ? "var(--primary)" : "var(--border)"}`,
-        borderRadius: 12,
-        padding: 12,
-        background: isOver ? "rgba(225, 29, 72, 0.05)" : "var(--background)",
-        transition: "background 0.15s, border-color 0.15s",
-      }}
-    >
+    <div ref={setNodeRef} className={`tray${isOver ? " is-over" : ""}`}>
       <div className="small muted" style={{ marginBottom: 8 }}>
-        Points tray — drag onto an item, drop back here to remove
+        Your points — drag one onto an item, or drop it back here to reclaim it.
       </div>
-      <div
-        className="row chip-tray"
-        style={{ gap: 8, flexWrap: "wrap", minHeight: 48 }}
-      >
+      <div className="row chip-tray" style={{ gap: 8, flexWrap: "wrap", minHeight: 44 }}>
         {EUROVISION_POINTS.map((p) =>
           remaining.includes(p) ? (
             <DraggableChip
               key={p}
               id={trayDragId(p)}
               points={p}
-              invisibleWhileDragging={draggingPoints === p}
+              hidden={draggingPoints === p}
             />
           ) : (
-            <ChipPlaceholder key={p} points={p} />
+            <span key={p} aria-hidden className="chip-ghost">
+              {p}
+            </span>
           ),
         )}
       </div>
@@ -207,28 +197,10 @@ function ItemRow({
   const highlight = isOver && wouldChange;
 
   return (
-    <li
-      ref={setNodeRef}
-      style={{
-        display: "flex",
-        gap: 12,
-        alignItems: "center",
-        padding: 10,
-        borderRadius: 10,
-        border: `1px solid ${highlight ? "var(--primary)" : "var(--border)"}`,
-        background: highlight ? "rgba(225, 29, 72, 0.06)" : "var(--background)",
-        transition: "background 0.15s, border-color 0.15s",
-      }}
-    >
+    <li ref={setNodeRef} className={`item-row${highlight ? " is-target" : ""}`}>
       {item.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={item.imageUrl}
-          alt=""
-          width={56}
-          height={56}
-          style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8 }}
-        />
+        <img src={item.imageUrl} alt="" width={56} height={56} className="item-thumb" />
       )}
       <div style={{ flex: 1, fontWeight: 500 }}>{item.title}</div>
 
@@ -238,13 +210,10 @@ function ItemRow({
             id={itemDragId(item.id, assigned)}
             points={assigned}
             onClick={onRemove}
-            title="Click to send back to tray"
+            title="Click to send back to the tray"
           />
         ) : (
-          <ClickToPickMenu
-            onPick={onPick}
-            remaining={remaining}
-          />
+          <PointPicker onPick={onPick} remaining={remaining} />
         )}
       </div>
     </li>
@@ -253,40 +222,16 @@ function ItemRow({
 
 /* ─────────────────── Chips ─────────────────── */
 
-const CHIP_SIZE = 44;
-
-function chipStyle(points: EurovisionPoint, opts?: { dragging?: boolean; faded?: boolean }): CSSProperties {
-  const top = points === 12;
-  return {
-    width: CHIP_SIZE,
-    height: CHIP_SIZE,
-    borderRadius: CHIP_SIZE / 2,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 700,
-    fontSize: 15,
-    userSelect: "none",
-    cursor: "grab",
-    background: top ? "var(--accent)" : "var(--card)",
-    color: top ? "#111" : "var(--foreground)",
-    border: `1px solid ${top ? "#eab308" : "var(--border)"}`,
-    boxShadow: opts?.dragging
-      ? "0 8px 24px rgba(0,0,0,0.18)"
-      : "0 1px 2px rgba(0,0,0,0.06)",
-    transform: opts?.dragging ? "scale(1.05) rotate(-2deg)" : undefined,
-    opacity: opts?.faded ? 0 : 1,
-    transition: "box-shadow 0.15s, transform 0.15s",
-    touchAction: "none",
-  };
+function chipClass(points: EurovisionPoint, opts?: { dragging?: boolean; hidden?: boolean }): string {
+  let cls = "chip";
+  if (points === 12) cls += " chip-top";
+  if (opts?.dragging) cls += " is-dragging";
+  if (opts?.hidden) cls += " is-hidden";
+  return cls;
 }
 
-function ChipVisual({ points, dragging }: { points: EurovisionPoint; dragging?: boolean }) {
-  return (
-    <div className="chip" style={chipStyle(points, { dragging })}>
-      {points}
-    </div>
-  );
+function Chip({ points, dragging }: { points: EurovisionPoint; dragging?: boolean }) {
+  return <div className={chipClass(points, { dragging })}>{points}</div>;
 }
 
 function DraggableChip({
@@ -294,64 +239,34 @@ function DraggableChip({
   points,
   onClick,
   title,
-  invisibleWhileDragging,
+  hidden,
 }: {
   id: string;
   points: EurovisionPoint;
   onClick?: () => void;
   title?: string;
-  invisibleWhileDragging?: boolean;
+  hidden?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
   return (
     <button
       type="button"
-      className="chip"
       ref={setNodeRef}
       onClick={onClick}
       title={title ?? `${points} points — drag onto an item`}
       aria-label={`${points} points`}
+      className={chipClass(points, { hidden: hidden || isDragging })}
       {...listeners}
       {...attributes}
-      style={{
-        ...chipStyle(points, { faded: invisibleWhileDragging || isDragging }),
-        border: "none",
-        padding: 0,
-      }}
     >
       {points}
     </button>
   );
 }
 
-function ChipPlaceholder({ points }: { points: EurovisionPoint }) {
-  return (
-    <div
-      aria-hidden
-      className="chip"
-      style={{
-        width: CHIP_SIZE,
-        height: CHIP_SIZE,
-        borderRadius: CHIP_SIZE / 2,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontWeight: 700,
-        fontSize: 15,
-        color: "var(--muted)",
-        border: "1px dashed var(--border)",
-        opacity: 0.5,
-        textDecoration: "line-through",
-      }}
-    >
-      {points}
-    </div>
-  );
-}
+/* ─────────── Click fallback for mobile/keyboard users ─────────── */
 
-/* ─────────────────── Click fallback for mobile/keyboard users ─────────────────── */
-
-function ClickToPickMenu({
+function PointPicker({
   remaining,
   onPick,
 }: {
@@ -363,7 +278,7 @@ function ClickToPickMenu({
     <div style={{ position: "relative" }}>
       <button
         type="button"
-        className="btn btn-ghost small"
+        className="btn btn-ghost btn-sm"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label="Assign points"
@@ -371,50 +286,56 @@ function ClickToPickMenu({
         + Add points
       </button>
       {open && (
-        <div
-          className="card"
-          style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 4px)",
-            padding: 8,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            zIndex: 5,
-            minWidth: 220,
-          }}
-          onMouseLeave={() => setOpen(false)}
-        >
-          {EUROVISION_POINTS.map((p) => {
-            const available = remaining.includes(p);
-            return (
-              <button
-                key={p}
-                type="button"
-                disabled={!available}
-                onClick={() => {
-                  if (!available) return;
-                  onPick(p);
-                  setOpen(false);
-                }}
-                style={{
-                  ...chipStyle(p),
-                  width: 36,
-                  height: 36,
-                  fontSize: 13,
-                  border: "none",
-                  padding: 0,
-                  cursor: available ? "pointer" : "not-allowed",
-                  opacity: available ? 1 : 0.35,
-                  textDecoration: available ? "none" : "line-through",
-                }}
-              >
-                {p}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {/* Invisible backdrop so a tap anywhere else closes the picker. */}
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "transparent",
+              border: "none",
+              cursor: "default",
+              zIndex: 5,
+            }}
+          />
+          <div
+            className="card"
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "calc(100% + 6px)",
+              padding: 10,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              zIndex: 6,
+              minWidth: 228,
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            {EUROVISION_POINTS.map((p) => {
+              const available = remaining.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={!available}
+                  onClick={() => {
+                    onPick(p);
+                    setOpen(false);
+                  }}
+                  className={available ? chipClass(p) : "chip-ghost"}
+                  style={{ width: 38, height: 38, fontSize: 13, cursor: available ? "pointer" : "not-allowed" }}
+                >
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

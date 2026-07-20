@@ -49,34 +49,29 @@ function LoginForm() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "40px auto" }}>
-      <div className="card stack" style={{ gap: 20 }}>
+    <div style={{ maxWidth: 420, margin: "48px auto" }}>
+      <div className="card stack" style={{ gap: 20, padding: 28 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700 }}>Welcome back</h1>
-          <p className="muted small" style={{ marginTop: 4 }}>
+          <h1 className="page-title" style={{ fontSize: 26 }}>Welcome back</h1>
+          <p className="muted small" style={{ marginTop: 6 }}>
             Sign in to create voting boards and manage your stage.
           </p>
         </div>
 
         {!configured && (
-          <div className="error">
+          <div className="note note-error">
             Firebase isn&apos;t configured yet. Add <code>NEXT_PUBLIC_FIREBASE_*</code> values
             to <code>.env.local</code> and reload.
           </div>
         )}
 
-        {error && <div className="error">{error}</div>}
+        {error && <div className="note note-error">{error}</div>}
 
         <button
           className="btn"
           onClick={() => void onGoogle()}
           disabled={!configured || busy}
-          style={{
-            justifyContent: "center",
-            padding: "12px 16px",
-            fontSize: 15,
-            fontWeight: 600,
-          }}
+          style={{ padding: "12px 16px", fontSize: 15, fontWeight: 600 }}
         >
           <GoogleIcon />
           {busy ? "Signing in…" : "Continue with Google"}

@@ -12,26 +12,29 @@ export default function Home() {
   const ctaLabel = user ? "Go to my boards" : "Log in to create a board";
 
   return (
-    <div className="stack" style={{ gap: 48, paddingTop: 32 }}>
-      <section style={{ textAlign: "center", padding: "32px 0" }}>
-        <h1 style={{ fontSize: 56, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1 }}>
-          Vote like it&apos;s <span style={{ color: "var(--primary)" }}>Eurovision</span>.
+    <div className="stack" style={{ gap: 56, paddingTop: 28 }}>
+      <section style={{ textAlign: "center", padding: "24px 0 8px" }}>
+        <h1
+          className="page-title"
+          style={{ fontSize: "clamp(38px, 7vw, 58px)", maxWidth: 720, margin: "0 auto" }}
+        >
+          Vote like it&apos;s <em style={{ color: "var(--primary)" }}>Eurovision</em>.
         </h1>
         <p
           className="muted"
-          style={{ fontSize: 18, maxWidth: 640, margin: "20px auto 32px" }}
+          style={{ fontSize: 17, maxWidth: 600, margin: "18px auto 30px" }}
         >
-          Voting Stage is a fun way to make group decisions. Add items with photos or
-          titles, share a link, and let every voter spend their 1, 2, 3, 4, 5, 6, 7, 8, 10, 12.
+          Make group decisions the fun way. Add your contenders with photos, share one
+          link, and let every voter hand out their 1 through 12 points.
         </p>
 
         <div className="row" style={{ justifyContent: "center" }}>
           {configured && ready ? (
-            <Link href={ctaHref} className="btn btn-primary" style={{ padding: "14px 22px", fontSize: 16 }}>
+            <Link href={ctaHref} className="btn btn-primary btn-lg">
               {ctaLabel}
             </Link>
           ) : (
-            <button className="btn btn-primary" disabled style={{ padding: "14px 22px", fontSize: 16 }}>
+            <button className="btn btn-primary btn-lg" disabled>
               {configured ? "Loading…" : "Firebase not configured"}
             </button>
           )}
@@ -39,24 +42,10 @@ export default function Home() {
 
         <div
           className="row"
-          style={{ justifyContent: "center", marginTop: 32, gap: 6, flexWrap: "wrap" }}
+          style={{ justifyContent: "center", marginTop: 36, gap: 6, flexWrap: "wrap" }}
         >
           {POINTS.map((p) => (
-            <span
-              key={p}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                background: p === 12 ? "var(--accent)" : "var(--card)",
-                border: "1px solid var(--border)",
-                fontWeight: 700,
-                color: p === 12 ? "#111" : "var(--foreground)",
-              }}
-            >
+            <span key={p} className={`chip${p === 12 ? " chip-top" : ""}`} style={{ cursor: "default" }}>
               {p}
             </span>
           ))}
@@ -66,25 +55,25 @@ export default function Home() {
       <section
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+          gap: 14,
         }}
       >
         <Feature
           title="Add anything"
-          body="Movies, restaurants, party themes, hackathon ideas. Add titles and optionally a photo per item."
+          body="Movies, restaurants, party themes, hackathon demos. Give each item a title and a photo — uploaded straight from your device."
         />
         <Feature
-          title="Share a link"
-          body="Open to anyone with the link, or invite specific people by email. Change it later in settings."
+          title="Share one link"
+          body="Open the board to anyone with the link, or invite specific people by email. You can change your mind later."
         />
         <Feature
-          title="One vote per browser"
-          body="Anonymous voters get a localStorage token so they can't vote twice — and can resume their ballot."
+          title="One ballot each"
+          body="Signed-in voters are counted once by account; anonymous voters get a per-browser token and can revisit to edit their ballot."
         />
         <Feature
-          title="You control the stage"
-          body="Only the creator can finish (or resume) the voting. Results stay private until the curtain falls."
+          title="You hold the curtain"
+          body="Only the creator can close the voting. Results stay hidden from voters until the board is finished."
         />
       </section>
     </div>
@@ -93,9 +82,9 @@ export default function Home() {
 
 function Feature({ title, body }: { title: string; body: string }) {
   return (
-    <div className="card">
-      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{title}</h3>
-      <p className="muted">{body}</p>
+    <div className="card stack" style={{ gap: 6 }}>
+      <h3 className="section-title" style={{ fontSize: 17 }}>{title}</h3>
+      <p className="muted" style={{ fontSize: 14 }}>{body}</p>
     </div>
   );
 }

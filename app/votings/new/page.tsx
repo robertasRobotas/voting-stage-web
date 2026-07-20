@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { parseEmailList } from "@/lib/emails";
 import type { VotingAccess, VotingDto } from "@/lib/types";
 import { ImagePicker } from "@/app/components/image-picker";
 
@@ -48,21 +49,22 @@ export default function NewVotingPage() {
       .filter((it) => it.title.length > 0);
 
     if (cleanedItems.length < 2) {
-      setError("Add at least two items.");
+      setError("Add at least two items (each needs a title).");
       return;
     }
 
-    const invitedEmails =
-      access === "INVITE_ONLY"
-        ? emailsText
-            .split(/[\s,;]+/)
-            .map((e) => e.trim().toLowerCase())
-            .filter(Boolean)
-        : [];
-
-    if (access === "INVITE_ONLY" && invitedEmails.length === 0) {
-      setError("Invite at least one email, or switch to anyone-with-link.");
-      return;
+    let invitedEmails: string[] = [];
+    if (access === "INVITE_ONLY") {
+      const { emails, invalid } = parseEmailList(emailsText);
+      if (invalid.length > 0) {
+        setError(`These don't look like email addresses: ${invalid.join(", ")}`);
+        return;
+      }
+      if (emails.length === 0) {
+        setError("Invite at least one email, or switch to anyone-with-link.");
+        return;
+      }
+      invitedEmails = emails;
     }
 
     setSubmitting(true);
@@ -88,39 +90,46 @@ export default function NewVotingPage() {
   if (!ready || !user) return <p className="muted">Loading…</p>;
 
   return (
-    <form onSubmit={onSubmit} className="stack" style={{ gap: 20, maxWidth: 720 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>New voting board</h1>
-
-      {error && <div className="error">{error}</div>}
-
+    <form onSubmit={onSubmit} className="stack" style={{ gap: 24, maxWidth: 680 }}>
       <div>
-        <label className="label" htmlFor="title">Title</label>
-        <input
-          id="title"
-          className="input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Best movie of 2025"
-          required
-          maxLength={200}
-        />
+        <h1 className="page-title">New voting board</h1>
+        <p className="muted" style={{ marginTop: 6 }}>
+          Set the stage, add the contenders, then share one link with your voters.
+        </p>
       </div>
 
-      <div>
-        <label className="label" htmlFor="description">Description (optional)</label>
-        <textarea
-          id="description"
-          className="textarea"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Tell voters what they're choosing between."
-          maxLength={2000}
-        />
-      </div>
+      {error && <div className="note note-error">{error}</div>}
 
-      <fieldset className="card stack" style={{ gap: 12 }}>
-        <legend style={{ padding: "0 6px", fontWeight: 600 }}>Who can vote?</legend>
-        <label className="row" style={{ gap: 8 }}>
+      <section className="card stack" style={{ gap: 16 }}>
+        <h2 className="section-title">The basics</h2>
+        <div>
+          <label className="label" htmlFor="title">Title</label>
+          <input
+            id="title"
+            className="input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Best movie of 2025"
+            required
+            maxLength={200}
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="description">Description <span className="muted" style={{ fontWeight: 400 }}>(optional)</span></label>
+          <textarea
+            id="description"
+            className="textarea"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Tell voters what they're choosing between."
+            maxLength={2000}
+          />
+        </div>
+      </section>
+
+      <section className="card stack" style={{ gap: 12 }}>
+        <h2 className="section-title">Who can vote?</h2>
+        <label className={`option${access === "LINK" ? " is-selected" : ""}`}>
           <input
             type="radio"
             name="access"
@@ -128,24 +137,28 @@ export default function NewVotingPage() {
             checked={access === "LINK"}
             onChange={() => setAccess("LINK")}
           />
-          <span><strong>Anyone with the link.</strong> <span className="muted small">Anonymous voters get a per-browser token so they can&apos;t vote twice.</span></span>
+          <span>
+            <strong>Anyone with the link.</strong>{" "}
+            <span className="muted small">
+              Anonymous voters get a per-browser token so they can&apos;t vote twice.
+            </span>
+          </span>
         </label>
-        <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+        <label className={`option${access === "INVITE_ONLY" ? " is-selected" : ""}`}>
           <input
             type="radio"
             name="access"
             value="INVITE_ONLY"
             checked={access === "INVITE_ONLY"}
             onChange={() => setAccess("INVITE_ONLY")}
-            style={{ marginTop: 4 }}
           />
           <span style={{ flex: 1 }}>
-            <strong>Invite-only by email.</strong>
-            <span className="muted small"> Listed emails must sign in to vote.</span>
+            <strong>Invite-only by email.</strong>{" "}
+            <span className="muted small">Listed emails must sign in to vote.</span>
             {access === "INVITE_ONLY" && (
               <textarea
                 className="textarea"
-                style={{ marginTop: 8 }}
+                style={{ marginTop: 10, minHeight: 64 }}
                 placeholder="alice@example.com, bob@example.com"
                 value={emailsText}
                 onChange={(e) => setEmailsText(e.target.value)}
@@ -153,53 +166,61 @@ export default function NewVotingPage() {
             )}
           </span>
         </label>
-        <p className="small muted">You can change this later in board settings.</p>
-      </fieldset>
+        <p className="hint">You can change this later in board settings.</p>
+      </section>
 
-      <fieldset className="card stack" style={{ gap: 12 }}>
-        <legend style={{ padding: "0 6px", fontWeight: 600 }}>Items to vote on</legend>
-        <p className="small muted">Add at least two. Each voter spends 1, 2, 3, 4, 5, 6, 7, 8, 10, 12 points across distinct items.</p>
+      <section className="card stack" style={{ gap: 14 }}>
+        <div>
+          <h2 className="section-title">Items to vote on</h2>
+          <p className="hint">
+            Add at least two. Each voter hands out 1–8, 10 and 12 points across
+            different items.
+          </p>
+        </div>
         {items.map((it, idx) => (
-          <div key={it.key} className="stack" style={{ gap: 6, borderTop: idx === 0 ? "none" : "1px solid var(--border)", paddingTop: idx === 0 ? 0 : 12 }}>
-            <div className="row" style={{ gap: 8, alignItems: "flex-end" }}>
-              <div style={{ flex: 2 }}>
-                <label className="label small">Title</label>
-                <input
-                  className="input"
-                  placeholder={`Item ${idx + 1} title`}
-                  value={it.title}
-                  onChange={(e) => updateItem(it.key, { title: e.target.value })}
-                  maxLength={200}
-                />
-              </div>
-              <div style={{ flex: 3, minWidth: 0 }}>
-                <label className="label small">Image (optional)</label>
-                <ImagePicker
-                  value={it.imageUrl}
-                  onChange={(url) => updateItem(it.key, { imageUrl: url })}
-                  compact
-                />
-              </div>
+          <div
+            key={it.key}
+            className="stack"
+            style={{
+              gap: 10,
+              borderTop: idx === 0 ? "none" : "1px solid var(--border)",
+              paddingTop: idx === 0 ? 0 : 14,
+            }}
+          >
+            <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+              <label className="label" style={{ marginBottom: 0 }}>Item {idx + 1}</label>
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="link-btn"
                 onClick={() => removeItem(it.key)}
                 disabled={items.length <= 2}
-                title={items.length <= 2 ? "Need at least 2 items" : "Remove"}
+                title={items.length <= 2 ? "A board needs at least 2 items" : "Remove this item"}
               >
                 Remove
               </button>
             </div>
+            <input
+              className="input"
+              placeholder="Title, e.g. Dune: Part Three"
+              value={it.title}
+              onChange={(e) => updateItem(it.key, { title: e.target.value })}
+              maxLength={200}
+            />
+            <ImagePicker
+              value={it.imageUrl}
+              onChange={(url) => updateItem(it.key, { imageUrl: url })}
+            />
           </div>
         ))}
         <button
           type="button"
           className="btn"
+          style={{ alignSelf: "flex-start" }}
           onClick={() => setItems((p) => [...p, emptyItem()])}
         >
-          + Add item
+          + Add another item
         </button>
-      </fieldset>
+      </section>
 
       <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
         <button type="button" className="btn btn-ghost" onClick={() => router.back()}>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { SiteHeader } from "./components/site-header";
@@ -12,6 +12,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Display serif for headings and the brand — the "warm" half of the type pairing.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  axes: ["SOFT", "WONK", "opsz"],
 });
 
 const description =
@@ -41,7 +48,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#e11d48",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf5ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#171310" },
+  ],
   width: "device-width",
   initialScale: 1,
 };
@@ -52,7 +62,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable}`}>
       <body>
         <AuthProvider>
           <SiteHeader />

@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import QRCode from "react-qr-code";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { parseEmailList } from "@/lib/emails";
 import type { VotingAccess, VotingDto, VotingItem } from "@/lib/types";
 import { ImagePicker } from "@/app/components/image-picker";
 import { Skeleton, SkeletonRow } from "@/app/components/skeleton";
+import { StatusBadge } from "@/app/components/status-badge";
 
 interface Props {
   shareId: string;
@@ -17,6 +19,17 @@ interface Props {
 /** How often to refresh the board while admin is open. Cheap polling beats
  *  spinning up a websocket for a low-traffic voting app. */
 const POLL_INTERVAL_MS = 5000;
+
+// window.location.origin never changes, so subscribing is a no-op; the store
+// exists purely to read a browser-only value without a hydration mismatch.
+const noopSubscribe = () => () => {};
+function useOrigin(): string {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => window.location.origin,
+    () => "",
+  );
+}
 
 export function AdminPageClient({ shareId }: Props) {
   const router = useRouter();
@@ -27,19 +40,21 @@ export function AdminPageClient({ shareId }: Props) {
   const [voting, setVoting] = useState<VotingDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [shareLink, setShareLink] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
+
+  const origin = useOrigin();
+  const shareLink = origin ? `${origin}/v/${shareId}` : "";
 
   // Polling is paused while the user is editing settings/items so their input
   // doesn't get clobbered by a refresh in flight.
   const pausePollingRef = useRef(false);
 
   const reload = useCallback(async () => {
-    setLoadError(null);
     try {
       const data = await api<VotingDto>(`/votings/share/${shareId}`, { token });
       setVoting(data);
+      setLoadError(null);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Failed to load");
     }
@@ -49,43 +64,41 @@ export function AdminPageClient({ shareId }: Props) {
     if (ready && !user) router.replace(`/login?next=/v/${shareId}/admin`);
   }, [ready, user, router, shareId]);
 
-  useEffect(() => {
-    if (token) void reload();
-  }, [token, reload]);
-
-  // Background polling while the page is open.
+  // Initial load (next tick) plus background polling while the page is open.
   useEffect(() => {
     if (!token) return;
+    const initial = window.setTimeout(() => void reload(), 0);
     const id = window.setInterval(() => {
       if (!pausePollingRef.current && document.visibilityState === "visible") {
         void reload();
       }
     }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(id);
+    };
   }, [token, reload]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setShareLink(`${window.location.origin}/v/${shareId}`);
-    }
-  }, [shareId]);
-
+  /**
+   * Run an owner mutation, then re-fetch the full board (the share endpoint is
+   * the only one that returns results/voters, so using the mutation response
+   * directly would blank those sections until the next poll).
+   * Returns whether the action succeeded so forms can keep their dirty state.
+   */
   async function callOwnerAction(
-    method: "POST" | "PATCH" | "DELETE",
+    method: "POST" | "PATCH",
     path: string,
     body?: unknown,
-  ) {
-    if (!voting) return;
+  ): Promise<boolean> {
+    if (!voting) return false;
     setActionError(null);
     try {
-      if (method === "DELETE") {
-        await api(path, { method, token });
-      } else {
-        const updated = await api<VotingDto>(path, { method, token, body });
-        setVoting(updated);
-      }
+      await api(path, { method, token, body });
+      await reload();
+      return true;
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Action failed");
+      return false;
     }
   }
 
@@ -114,11 +127,11 @@ export function AdminPageClient({ shareId }: Props) {
     }
   }
 
-  if (loadError) return <div className="error">{loadError}</div>;
+  if (loadError) return <div className="note note-error">{loadError}</div>;
   if (!ready || !user || !voting) {
     return (
       <div className="stack" style={{ gap: 16 }}>
-        <Skeleton height={28} width={320} />
+        <Skeleton height={30} width={320} />
         <Skeleton height={16} width={200} />
         <div className="card stack" style={{ gap: 8 }}>
           <SkeletonRow lines={4} />
@@ -131,7 +144,7 @@ export function AdminPageClient({ shareId }: Props) {
     return (
       <div className="card stack" style={{ gap: 8 }}>
         <strong>Only the creator can manage this board.</strong>
-        <Link href={`/v/${voting.shareId}`} className="btn">
+        <Link href={`/v/${voting.shareId}`} className="btn" style={{ alignSelf: "flex-start" }}>
           View the board
         </Link>
       </div>
@@ -141,17 +154,19 @@ export function AdminPageClient({ shareId }: Props) {
   return (
     <div className="stack" style={{ gap: 20 }}>
       {showCreatedFlash && (
-        <div className="success">
+        <div className="note note-success">
           Voting created. Share the link below to start collecting votes.
         </div>
       )}
 
       <header className="row" style={{ justifyContent: "space-between", gap: 8 }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700 }}>{voting.title}</h1>
+        <div className="stack" style={{ gap: 6 }}>
+          <div className="row" style={{ gap: 10 }}>
+            <h1 className="page-title">{voting.title}</h1>
+            <StatusBadge status={voting.status} />
+          </div>
           <p className="muted small">
-            Status: {voting.status.toLowerCase()} ·{" "}
-            {voting.access === "LINK" ? "Anyone with link" : "Invite-only"}
+            {voting.access === "LINK" ? "Anyone with the link can vote" : "Invite-only board"}
           </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
@@ -176,17 +191,18 @@ export function AdminPageClient({ shareId }: Props) {
         </div>
       </header>
 
-      {actionError && <div className="error">{actionError}</div>}
+      {actionError && <div className="note note-error">{actionError}</div>}
 
       {/* Share section with QR */}
       <section className="card stack" style={{ gap: 12 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700 }}>Share</h2>
+        <h2 className="section-title">Share</h2>
         <div className="row" style={{ gap: 8 }}>
           <input
             className="input"
             readOnly
             value={shareLink}
             onFocus={(e) => e.currentTarget.select()}
+            style={{ flex: 1, minWidth: 200 }}
           />
           <button className="btn" onClick={copyShare}>
             {copied ? "Copied!" : "Copy link"}
@@ -200,14 +216,15 @@ export function AdminPageClient({ shareId }: Props) {
             style={{
               background: "white",
               padding: 12,
-              borderRadius: 8,
+              borderRadius: 10,
               alignSelf: "flex-start",
+              border: "1px solid var(--border)",
             }}
           >
             <QRCode value={shareLink} size={160} />
           </div>
         )}
-        <p className="small muted">
+        <p className="hint">
           Anyone with this link can open the board. Voting access still depends on the setting
           below.
         </p>
@@ -216,9 +233,7 @@ export function AdminPageClient({ shareId }: Props) {
       <SettingsSection
         voting={voting}
         onFocusChange={(focused) => (pausePollingRef.current = focused)}
-        onSave={async (input) => {
-          await callOwnerAction("PATCH", `/votings/${voting.id}/settings`, input);
-        }}
+        onSave={(input) => callOwnerAction("PATCH", `/votings/${voting.id}/settings`, input)}
       />
 
       <ItemsSection
@@ -233,9 +248,9 @@ export function AdminPageClient({ shareId }: Props) {
 
       {voting.results && (
         <section className="card stack" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700 }}>
+          <h2 className="section-title">
             Live results{" "}
-            <span className="muted small">
+            <span className="muted small" style={{ fontFamily: "var(--font-body)", fontWeight: 400 }}>
               ({voting.results.totalVotes}{" "}
               {voting.results.totalVotes === 1 ? "ballot" : "ballots"})
             </span>
@@ -243,34 +258,22 @@ export function AdminPageClient({ shareId }: Props) {
           {voting.results.perItem.length === 0 ? (
             <p className="muted">No votes yet.</p>
           ) : (
-            <ol className="stack" style={{ listStyle: "none", gap: 6 }}>
-              {voting.results.perItem.map((row, idx) => {
-                const item = voting.items.find((i) => i.id === row.itemId);
-                return (
-                  <li key={row.itemId} className="row" style={{ gap: 8 }}>
-                    <strong style={{ width: 28 }}>{idx + 1}.</strong>
-                    <span style={{ flex: 1 }}>{item?.title ?? row.itemId}</span>
-                    <strong>{row.totalPoints} pts</strong>
-                  </li>
-                );
-              })}
-            </ol>
+            <LiveResults voting={voting} />
           )}
         </section>
       )}
 
       {/* Danger zone */}
-      <section
-        className="card stack"
-        style={{ gap: 8, borderColor: "#fca5a5" }}
-      >
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "#991b1b" }}>Danger zone</h2>
+      <section className="card stack" style={{ gap: 8, borderColor: "var(--red-border)" }}>
+        <h2 className="section-title" style={{ color: "var(--red)" }}>
+          Danger zone
+        </h2>
         <p className="small muted">
           Deleting the board removes it and every ballot. There is no undo.
         </p>
         <button
-          className="btn"
-          style={{ alignSelf: "flex-start", color: "#991b1b", borderColor: "#fca5a5" }}
+          className="btn btn-danger"
+          style={{ alignSelf: "flex-start" }}
           onClick={() => void onDeleteBoard()}
         >
           Delete this board
@@ -280,7 +283,53 @@ export function AdminPageClient({ shareId }: Props) {
   );
 }
 
+function LiveResults({ voting }: { voting: VotingDto }) {
+  const results = voting.results!;
+  const maxPoints = Math.max(1, ...results.perItem.map((r) => r.totalPoints));
+  return (
+    <ol className="stack" style={{ listStyle: "none", gap: 8 }}>
+      {results.perItem.map((row, idx) => {
+        const item = voting.items.find((i) => i.id === row.itemId);
+        return (
+          <li
+            key={row.itemId}
+            className={`result-row${idx === 0 ? " is-leader" : ""}`}
+            style={{ "--bar": `${(row.totalPoints / maxPoints) * 100}%` } as React.CSSProperties}
+          >
+            <div className="row" style={{ gap: 12, flexWrap: "nowrap" }}>
+              <span className="result-rank">{idx + 1}</span>
+              <span style={{ flex: 1, fontWeight: idx === 0 ? 600 : 500 }}>
+                {item?.title ?? "Removed item"}
+              </span>
+              <strong style={{ fontVariantNumeric: "tabular-nums" }}>{row.totalPoints} pts</strong>
+              <span className="small muted">
+                {row.voteCount} {row.voteCount === 1 ? "vote" : "votes"}
+              </span>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 /* ─────────────────── Settings ─────────────────── */
+
+interface SettingsDraft {
+  title: string;
+  description: string;
+  access: VotingAccess;
+  emailsText: string;
+}
+
+function draftFromVoting(voting: VotingDto): SettingsDraft {
+  return {
+    title: voting.title,
+    description: voting.description ?? "",
+    access: voting.access,
+    emailsText: (voting.invitedEmails ?? []).join(", "),
+  };
+}
 
 function SettingsSection({
   voting,
@@ -290,53 +339,63 @@ function SettingsSection({
   voting: VotingDto;
   onSave: (input: {
     title: string;
-    description?: string;
+    description: string;
     access: VotingAccess;
     invitedEmails: string[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   onFocusChange: (focused: boolean) => void;
 }) {
-  const [title, setTitle] = useState(voting.title);
-  const [description, setDescription] = useState(voting.description ?? "");
-  const [access, setAccess] = useState<VotingAccess>(voting.access);
-  const [emailsText, setEmailsText] = useState((voting.invitedEmails ?? []).join(", "));
+  // null = pristine: the form mirrors server state, so background polling can
+  // refresh it freely. Non-null = unsaved edits that must not be clobbered.
+  const [draft, setDraft] = useState<SettingsDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  // Only resync from server when the user isn't actively editing.
-  useEffect(() => {
-    if (dirty) return;
-    setTitle(voting.title);
-    setDescription(voting.description ?? "");
-    setAccess(voting.access);
-    setEmailsText((voting.invitedEmails ?? []).join(", "));
-  }, [voting, dirty]);
+  const view = draft ?? draftFromVoting(voting);
+  const dirty = draft !== null;
 
-  function markDirty(setter: (v: string) => void) {
-    return (val: string) => {
-      setter(val);
-      setDirty(true);
-    };
+  function edit(patch: Partial<SettingsDraft>) {
+    setDraft({ ...view, ...patch });
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setLocalError(null);
+
+    if (!view.title.trim()) {
+      setLocalError("The board needs a title.");
+      return;
+    }
+    const { emails, invalid } = parseEmailList(view.emailsText);
+    if (view.access === "INVITE_ONLY") {
+      if (invalid.length > 0) {
+        setLocalError(`These don't look like email addresses: ${invalid.join(", ")}`);
+        return;
+      }
+      if (emails.length === 0) {
+        setLocalError("Invite at least one email, or switch to anyone-with-link.");
+        return;
+      }
+    }
+
     setSaving(true);
     setSaved(false);
     try {
-      await onSave({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        access,
-        invitedEmails: emailsText
-          .split(/[\s,;]+/)
-          .map((s) => s.trim())
-          .filter(Boolean),
+      const ok = await onSave({
+        title: view.title.trim(),
+        // Empty string clears the description server-side.
+        description: view.description.trim(),
+        access: view.access,
+        invitedEmails: emails,
       });
-      setDirty(false);
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 1500);
+      if (ok) {
+        // onSave reloads the board before resolving, so dropping the draft
+        // reveals the freshly saved server state.
+        setDraft(null);
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 2000);
+      }
     } finally {
       setSaving(false);
     }
@@ -346,63 +405,66 @@ function SettingsSection({
     <form
       onSubmit={submit}
       className="card stack"
-      style={{ gap: 12 }}
+      style={{ gap: 14 }}
       onFocus={() => onFocusChange(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) onFocusChange(false);
       }}
     >
-      <h2 style={{ fontSize: 16, fontWeight: 700 }}>Settings</h2>
+      <h2 className="section-title">Settings</h2>
       <div>
-        <label className="label">Title</label>
+        <label className="label" htmlFor="settings-title">Title</label>
         <input
+          id="settings-title"
           className="input"
-          value={title}
-          onChange={(e) => markDirty(setTitle)(e.target.value)}
+          value={view.title}
+          onChange={(e) => edit({ title: e.target.value })}
           maxLength={200}
         />
       </div>
       <div>
-        <label className="label">Description</label>
+        <label className="label" htmlFor="settings-description">Description</label>
         <textarea
+          id="settings-description"
           className="textarea"
-          value={description}
-          onChange={(e) => markDirty(setDescription)(e.target.value)}
+          value={view.description}
+          onChange={(e) => edit({ description: e.target.value })}
           maxLength={2000}
         />
       </div>
       <div>
-        <label className="label">Who can vote</label>
+        <label className="label" htmlFor="settings-access">Who can vote</label>
         <select
+          id="settings-access"
           className="select"
-          value={access}
-          onChange={(e) => {
-            setDirty(true);
-            setAccess(e.target.value as VotingAccess);
-          }}
+          value={view.access}
+          onChange={(e) => edit({ access: e.target.value as VotingAccess })}
         >
           <option value="LINK">Anyone with the link</option>
           <option value="INVITE_ONLY">Invite-only by email</option>
         </select>
       </div>
-      {access === "INVITE_ONLY" && (
+      {view.access === "INVITE_ONLY" && (
         <div>
-          <label className="label">Invited emails</label>
+          <label className="label" htmlFor="settings-emails">Invited emails</label>
           <textarea
+            id="settings-emails"
             className="textarea"
-            value={emailsText}
-            onChange={(e) => markDirty(setEmailsText)(e.target.value)}
+            style={{ minHeight: 64 }}
+            value={view.emailsText}
+            onChange={(e) => edit({ emailsText: e.target.value })}
             placeholder="alice@example.com, bob@example.com"
           />
-          <p className="small muted" style={{ marginTop: 4 }}>
-            Newly added emails are notified by email when you save (if Resend is configured on
-            the server).
+          <p className="hint">
+            Newly added emails get an invitation email when you save (if email sending is
+            configured on the server).
           </p>
         </div>
       )}
-      <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+      {localError && <div className="note note-error">{localError}</div>}
+      <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
         {saved && (
-          <span className="small" style={{ color: "#16a34a" }}>
+          <span className="small" style={{ color: "var(--green)" }}>
             Saved
           </span>
         )}
@@ -461,15 +523,15 @@ function ItemsSection({
   }
 
   return (
-    <section className="card stack" style={{ gap: 12 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700 }}>Items</h2>
-      <ul className="stack" style={{ listStyle: "none", gap: 8 }}>
+    <section className="card stack" style={{ gap: 14 }}>
+      <h2 className="section-title">Items</h2>
+      <ul className="stack" style={{ listStyle: "none", gap: 0 }}>
         {voting.items.map((it, idx) => (
           <li
             key={it.id}
             style={{
-              borderBottom: "1px solid var(--border)",
-              paddingBottom: 8,
+              borderTop: idx === 0 ? "none" : "1px solid var(--border)",
+              padding: "10px 0",
             }}
           >
             {editingId === it.id ? (
@@ -490,20 +552,22 @@ function ItemsSection({
               />
             ) : (
               <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
-                <div className="row" style={{ gap: 10, flex: 1, minWidth: 0 }}>
-                  {it.imageUrl && (
+                <div className="row" style={{ gap: 10, flex: 1, minWidth: 0, flexWrap: "nowrap" }}>
+                  {it.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={it.imageUrl}
                       alt=""
                       width={40}
                       height={40}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        objectFit: "cover",
-                        borderRadius: 6,
-                      }}
+                      className="item-thumb"
+                      style={{ width: 40, height: 40 }}
+                    />
+                  ) : (
+                    <span
+                      className="item-thumb"
+                      style={{ width: 40, height: 40, display: "inline-block" }}
+                      aria-hidden
                     />
                   )}
                   <span
@@ -511,17 +575,19 @@ function ItemsSection({
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
+                      fontWeight: 500,
                     }}
                   >
                     {it.title}
                   </span>
                 </div>
-                <div className="row" style={{ gap: 4 }}>
+                <div className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
                   <button
                     className="icon-btn"
                     onClick={() => void reorder(it.id, -1)}
                     disabled={idx === 0}
                     title="Move up"
+                    aria-label="Move up"
                   >
                     ↑
                   </button>
@@ -530,11 +596,12 @@ function ItemsSection({
                     onClick={() => void reorder(it.id, 1)}
                     disabled={idx === voting.items.length - 1}
                     title="Move down"
+                    aria-label="Move down"
                   >
                     ↓
                   </button>
                   <button
-                    className="btn btn-ghost small"
+                    className="btn btn-ghost btn-sm"
                     onClick={() => {
                       setEditingId(it.id);
                       onFocusChange(true);
@@ -543,7 +610,7 @@ function ItemsSection({
                     Edit
                   </button>
                   <button
-                    className="btn btn-ghost small"
+                    className="btn btn-ghost btn-sm"
                     onClick={() => void deleteItem(it)}
                     title="Remove item"
                   >
@@ -555,6 +622,7 @@ function ItemsSection({
           </li>
         ))}
       </ul>
+      <hr className="divider" />
       <AddItemForm
         votingId={voting.id}
         token={token}
@@ -597,7 +665,8 @@ function EditItem({
         token,
         body: {
           title: title.trim(),
-          imageUrl: imageUrl.trim() || "",
+          // Empty string clears the image server-side.
+          imageUrl: imageUrl.trim(),
         },
       });
       onSaved();
@@ -609,7 +678,7 @@ function EditItem({
   }
 
   return (
-    <div className="stack" style={{ gap: 8 }}>
+    <div className="stack" style={{ gap: 10, padding: "4px 0" }}>
       <input
         className="input"
         value={title}
@@ -619,10 +688,10 @@ function EditItem({
       />
       <ImagePicker value={imageUrl} onChange={setImageUrl} />
       <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel} disabled={saving}>
           Cancel
         </button>
-        <button className="btn btn-primary" onClick={() => void save()} disabled={saving}>
+        <button className="btn btn-primary btn-sm" onClick={() => void save()} disabled={saving}>
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
@@ -650,7 +719,7 @@ function AddItemForm({
   return (
     <form
       className="stack"
-      style={{ gap: 8 }}
+      style={{ gap: 10 }}
       onFocus={() => onFocusChange(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) onFocusChange(false);
@@ -675,19 +744,20 @@ function AddItemForm({
         }
       }}
     >
+      <span className="label" style={{ marginBottom: 0 }}>Add an item</span>
       <div className="row" style={{ gap: 8 }}>
         <input
           className="input"
           placeholder="New item title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          style={{ flex: 1, minWidth: 0 }}
+          style={{ flex: 1, minWidth: 180 }}
         />
         <button type="submit" className="btn" disabled={busy || !title.trim()}>
-          + Add
+          {busy ? "Adding…" : "Add item"}
         </button>
       </div>
-      <ImagePicker value={imageUrl} onChange={setImageUrl} compact />
+      <ImagePicker value={imageUrl} onChange={setImageUrl} />
     </form>
   );
 }
@@ -707,35 +777,28 @@ function VotersSection({ voting }: { voting: VotingDto }) {
 
   return (
     <section className="card stack" style={{ gap: 10 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700 }}>
-        Voters <span className="muted small">({voters.length})</span>
+      <h2 className="section-title">
+        Voters{" "}
+        <span className="muted small" style={{ fontFamily: "var(--font-body)", fontWeight: 400 }}>
+          ({voters.length})
+        </span>
       </h2>
       {voters.length === 0 ? (
         <p className="muted">No votes yet.</p>
       ) : (
-        <ul className="stack" style={{ listStyle: "none", gap: 6 }}>
+        <ul className="stack" style={{ listStyle: "none", gap: 0 }}>
           {voters.map((v) => (
-            <li
-              key={v.voteId}
-              className="row"
-              style={{
-                justifyContent: "space-between",
-                padding: "6px 0",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
+            <li key={v.voteId} className="voter-row">
               <div className="stack" style={{ gap: 2 }}>
-                <span>
-                  {v.voterName ??
-                    v.voterEmail ??
-                    (v.isAnonymous ? "Anonymous voter" : "Voter")}
+                <span style={{ fontWeight: 500 }}>
+                  {v.voterName ?? v.voterEmail ?? (v.isAnonymous ? "Anonymous voter" : "Voter")}
                 </span>
                 <span className="small muted">
                   {v.isSignedIn ? "Signed in" : "Anonymous"} ·{" "}
                   {new Date(v.castAt).toLocaleString()}
                 </span>
               </div>
-              <span className="small muted">
+              <span className="small muted" style={{ fontVariantNumeric: "tabular-nums" }}>
                 {v.allocations.reduce((sum, a) => sum + a.points, 0)} pts placed
               </span>
             </li>
@@ -743,11 +806,9 @@ function VotersSection({ voting }: { voting: VotingDto }) {
         </ul>
       )}
       {voting.access === "INVITE_ONLY" && missing.length > 0 && (
-        <div>
-          <h3 className="label" style={{ marginBottom: 4 }}>
-            Still to vote ({missing.length})
-          </h3>
-          <p className="small muted">{missing.join(", ")}</p>
+        <div className="note">
+          <strong className="small">Still to vote ({missing.length}):</strong>{" "}
+          <span className="small muted">{missing.join(", ")}</span>
         </div>
       )}
     </section>

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import type { VotingDto } from "@/lib/types";
 import { Skeleton } from "@/app/components/skeleton";
+import { StatusBadge } from "@/app/components/status-badge";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -21,10 +22,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    setError(null);
     api<VotingDto[]>("/votings", { token })
       .then((data) => {
-        if (!cancelled) setItems(data);
+        if (!cancelled) {
+          setItems(data);
+          setError(null);
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load boards");
@@ -41,13 +44,13 @@ export default function DashboardPage() {
   return (
     <div className="stack" style={{ gap: 24 }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700 }}>My voting boards</h1>
+        <h1 className="page-title">My voting boards</h1>
         <Link href="/votings/new" className="btn btn-primary">
-          + New voting
+          New voting
         </Link>
       </div>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="note note-error">{error}</div>}
 
       {items === null && !error && (
         <div className="stack" style={{ gap: 12 }}>
@@ -64,8 +67,11 @@ export default function DashboardPage() {
       )}
 
       {items && items.length === 0 && (
-        <div className="card stack" style={{ alignItems: "flex-start", gap: 12 }}>
-          <p>You haven&apos;t created any boards yet.</p>
+        <div className="card stack" style={{ alignItems: "center", gap: 12, padding: 40, textAlign: "center" }}>
+          <h2 className="section-title">Nothing on stage yet</h2>
+          <p className="muted" style={{ maxWidth: 380 }}>
+            Create a board, add the contenders, and share the link — your voters do the rest.
+          </p>
           <Link href="/votings/new" className="btn btn-primary">
             Create your first voting
           </Link>
@@ -73,19 +79,33 @@ export default function DashboardPage() {
       )}
 
       {items && items.length > 0 && (
-        <ul className="stack" style={{ listStyle: "none", gap: 12 }}>
+        <ul className="stack" style={{ listStyle: "none", gap: 10 }}>
           {items.map((v) => (
             <li key={v.id} className="card" style={{ padding: 16 }}>
               <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{v.title}</div>
+                <div className="stack" style={{ gap: 4, minWidth: 0 }}>
+                  <div className="row" style={{ gap: 8 }}>
+                    <Link
+                      href={`/v/${v.shareId}/admin`}
+                      style={{ fontWeight: 600, color: "var(--ink)", fontSize: 16 }}
+                    >
+                      {v.title}
+                    </Link>
+                    <StatusBadge status={v.status} />
+                  </div>
                   <div className="small muted">
-                    {v.items.length} items · {v.status.toLowerCase()} · {v.access === "LINK" ? "anyone with link" : "invite-only"}
+                    {v.items.length} {v.items.length === 1 ? "item" : "items"} ·{" "}
+                    {v.access === "LINK" ? "anyone with the link" : "invite-only"} · created{" "}
+                    {new Date(v.createdAt).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
-                  <Link href={`/v/${v.shareId}`} className="btn btn-ghost">Open</Link>
-                  <Link href={`/v/${v.shareId}/admin`} className="btn">Manage</Link>
+                  <Link href={`/v/${v.shareId}`} className="btn btn-ghost btn-sm">
+                    Open
+                  </Link>
+                  <Link href={`/v/${v.shareId}/admin`} className="btn btn-sm">
+                    Manage
+                  </Link>
                 </div>
               </div>
             </li>
