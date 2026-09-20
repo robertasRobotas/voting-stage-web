@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_NAME } from "@/lib/site";
 import { connectDb } from "@/server/db";
 import { findByShareId } from "@/server/voting/voting.repository";
 import { VotePageClient } from "./vote-client";
@@ -17,10 +18,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     await connectDb();
     const voting = await findByShareId(shareId);
     if (!voting) return fallback;
+    const description =
+      voting.description ?? "Cast your Eurovision-style ballot on this voting board.";
     return {
       title: voting.title,
-      description:
-        voting.description ?? "Cast your Eurovision-style ballot on this voting board.",
+      description,
+      // Without these the link preview would inherit the site-wide card text.
+      openGraph: { title: voting.title, description, type: "website", siteName: SITE_NAME },
+      twitter: { card: "summary_large_image", title: voting.title, description },
     };
   } catch {
     return fallback;

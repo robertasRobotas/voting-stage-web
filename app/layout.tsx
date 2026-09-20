@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, siteUrl } from "@/lib/site";
 import { SiteHeader } from "./components/site-header";
 
 const geistSans = Geist({
@@ -21,26 +22,36 @@ const fraunces = Fraunces({
   axes: ["SOFT", "WONK", "opsz"],
 });
 
-const description =
-  "Eurovision-style voting boards for any group decision. Drag your 1, 2, 3, 4, 5, 6, 7, 8, 10, 12 onto items and see who wins.";
-
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: {
-    default: "Voting Stage — Eurovision-style voting boards",
-    template: "%s · Voting Stage",
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s · ${SITE_NAME}`,
   },
-  description,
-  applicationName: "Voting Stage",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "Eurovision-style voting",
+    "Eurovision party voting",
+    "douze points",
+    "12 points voting",
+    "ranked group voting",
+    "group decision poll",
+    "vote on anything",
+    "online scoreboard",
+  ],
+  // The social image comes from app/opengraph-image.tsx automatically.
   openGraph: {
-    title: "Voting Stage",
-    description,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
     type: "website",
-    siteName: "Voting Stage",
+    siteName: SITE_NAME,
+    locale: "en_US",
   },
   twitter: {
-    card: "summary",
-    title: "Voting Stage",
-    description,
+    card: "summary_large_image",
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
   },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
