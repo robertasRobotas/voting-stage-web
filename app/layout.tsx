@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
-import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
+import { analyticsEnabled } from "@/lib/analytics";
 import { AuthProvider } from "@/lib/auth-context";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, siteUrl } from "@/lib/site";
+import { Analytics } from "./components/analytics";
 import { SiteFooter } from "./components/site-footer";
 import { SiteHeader } from "./components/site-header";
 
@@ -63,9 +64,7 @@ export const metadata: Metadata = {
 };
 
 // Measurement IDs are public (they're in the page source of any site using GA).
-// Production only, so local development doesn't pollute the statistics.
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-VFF10LT41N";
-const analyticsEnabled = process.env.NODE_ENV === "production";
 
 export const viewport: Viewport = {
   themeColor: [
@@ -89,8 +88,8 @@ export default function RootLayout({
           <main className="page">{children}</main>
           <SiteFooter />
         </AuthProvider>
+        {analyticsEnabled && <Analytics gaId={GA_ID} />}
       </body>
-      {analyticsEnabled && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { getOrCreateAnonToken } from "@/lib/anon-token";
 import {
   EUROVISION_POINTS,
@@ -128,6 +129,12 @@ export function VotePageClient({ shareId }: Props) {
       });
       setVoteState("submitted");
       setConfirmation(isUpdate ? "updated" : "saved");
+      track("vote_cast", {
+        is_update: isUpdate,
+        signed_in: !!user,
+        points_placed: allocations.length,
+        board_access: voting.access,
+      });
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Submitting failed");
     } finally {
@@ -327,7 +334,10 @@ function ResultsSection({ voting }: { voting: VotingDto }) {
             type="button"
             className={`btn btn-sm${view === "tiers" ? "" : " btn-ghost"}`}
             aria-pressed={view === "tiers"}
-            onClick={() => setView("tiers")}
+            onClick={() => {
+              setView("tiers");
+              track("results_view_changed", { view: "tiers" });
+            }}
           >
             Tier list
           </button>

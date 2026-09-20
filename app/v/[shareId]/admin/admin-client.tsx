@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import QRCode from "react-qr-code";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { parseEmailList } from "@/lib/emails";
 import type { VotingAccess, VotingDto, VotingItem } from "@/lib/types";
 import { ImagePicker } from "@/app/components/image-picker";
@@ -111,6 +112,7 @@ export function AdminPageClient({ shareId }: Props) {
   function copyShare() {
     if (!shareLink) return;
     void navigator.clipboard.writeText(shareLink).then(() => {
+      track("share", { method: "copy_link", content_type: "board" });
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     });
@@ -182,7 +184,11 @@ export function AdminPageClient({ shareId }: Props) {
           {voting.status === "OPEN" ? (
             <button
               className="btn btn-primary"
-              onClick={() => void callOwnerAction("POST", `/votings/${voting.id}/finish`)}
+              onClick={() =>
+                void callOwnerAction("POST", `/votings/${voting.id}/finish`).then((ok) => {
+                  if (ok) track("board_finished", { total_votes: voting.results?.totalVotes ?? 0 });
+                })
+              }
             >
               Finish voting
             </button>
@@ -195,7 +201,9 @@ export function AdminPageClient({ shareId }: Props) {
                     "Resume voting?\n\nThe results have already been visible to everyone. Voters will be able to change their ballots knowing them.",
                   )
                 ) {
-                  void callOwnerAction("POST", `/votings/${voting.id}/resume`);
+                  void callOwnerAction("POST", `/votings/${voting.id}/resume`).then((ok) => {
+                    if (ok) track("board_resumed", {});
+                  });
                 }
               }}
             >
@@ -221,7 +229,13 @@ export function AdminPageClient({ shareId }: Props) {
           <button className="btn" onClick={copyShare}>
             {copied ? "Copied!" : "Copy link"}
           </button>
-          <button className="btn btn-ghost" onClick={() => setShowQr((v) => !v)}>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              if (!showQr) track("share", { method: "qr_code", content_type: "board" });
+              setShowQr((v) => !v);
+            }}
+          >
             {showQr ? "Hide QR" : "Show QR"}
           </button>
         </div>

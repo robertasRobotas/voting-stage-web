@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { track } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth-context";
 
 /** The only part of the marketing pages that depends on sign-in state. */
 export function HomeCta({ label = "Create a free voting board" }: { label?: string }) {
   const { user, configured, ready } = useAuth();
+  const pathname = usePathname();
 
   if (!configured) {
     return (
@@ -17,7 +20,11 @@ export function HomeCta({ label = "Create a free voting board" }: { label?: stri
   // Until auth settles, link to /login — it forwards signed-in users onward.
   const href = ready && user ? "/votings/new" : "/login?next=/votings/new";
   return (
-    <Link href={href} className="btn btn-primary btn-lg">
+    <Link
+      href={href}
+      className="btn btn-primary btn-lg"
+      onClick={() => track("cta_click", { placement: pathname })}
+    >
       {label}
     </Link>
   );

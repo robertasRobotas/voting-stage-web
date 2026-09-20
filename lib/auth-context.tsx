@@ -15,6 +15,7 @@ import {
   signOut as fbSignOut,
   type User as FirebaseUser,
 } from "firebase/auth";
+import { track } from "./analytics";
 import { firebaseConfigured, getFirebase, googleProvider } from "./firebase";
 
 interface AuthCtx {
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback(async () => {
     const { auth } = getFirebase();
     await signInWithPopup(auth, googleProvider);
+    track("login", { method: "Google" });
   }, []);
 
   const signOut = useCallback(async () => {

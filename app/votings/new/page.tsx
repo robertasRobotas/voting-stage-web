@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { parseEmailList } from "@/lib/emails";
 import type { VotingAccess, VotingDto } from "@/lib/types";
 import { ImagePicker } from "@/app/components/image-picker";
@@ -79,6 +80,11 @@ export default function NewVotingPage() {
           invitedEmails,
           items: cleanedItems,
         },
+      });
+      track("board_created", {
+        access,
+        item_count: cleanedItems.length,
+        with_images: cleanedItems.filter((it) => it.imageUrl).length,
       });
       router.push(`/v/${created.shareId}/admin?created=1`);
     } catch (e) {
