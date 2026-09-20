@@ -200,7 +200,7 @@ function ItemRow({
     <li ref={setNodeRef} className={`item-row${highlight ? " is-target" : ""}`}>
       {item.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.imageUrl} alt="" width={56} height={56} className="item-thumb" />
+        <img src={item.imageUrl} alt="" referrerPolicy="no-referrer" width={56} height={56} className="item-thumb" />
       )}
       <div style={{ flex: 1, fontWeight: 500 }}>{item.title}</div>
 

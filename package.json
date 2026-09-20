@@ -6,15 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "firebase": "^11.0.2",
-    "next": "16.2.6",
+    "jose": "^5.10.0",
+    "mongoose": "^8.24.4",
+    "next": "16.3.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-qr-code": "^2.0.21"
+    "react-qr-code": "^2.0.21",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -22,7 +27,8 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
-    "typescript": "^5"
+    "eslint-config-next": "16.3.5",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { getOrCreateAnonToken } from "@/lib/anon-token";
@@ -57,10 +57,18 @@ export function VotePageClient({ shareId }: Props) {
     };
   }, [shareId, token, ready]);
 
+  // Which identity the ballot was last prefilled for. The board object is
+  // re-fetched whenever the ID token refreshes (hourly), and without this guard
+  // every refresh would overwrite the voter's unsaved edits with their last
+  // saved ballot. Prefill once per identity; signing in/out prefills again.
+  const prefilledFor = useRef<string | null>(null);
+
   // After the board loads, fetch this viewer's prior vote (if any) and prefill
   // the ballot so they can review or edit it.
   useEffect(() => {
     if (!voting) return;
+    const identityKey = user ? `user:${user.uid}` : "anon";
+    if (prefilledFor.current === identityKey) return;
     let cancelled = false;
     const anonToken = user ? null : getOrCreateAnonToken(shareId);
     const knownItemIds = new Set(voting.items.map((i) => i.id));
@@ -70,6 +78,7 @@ export function VotePageClient({ shareId }: Props) {
     })
       .then((r) => {
         if (cancelled) return;
+        prefilledFor.current = identityKey;
         if (r.voted && r.allocations.length > 0) {
           const prefilled: Allocation = {};
           // Skip allocations pointing at items the owner has since removed,
@@ -147,7 +156,7 @@ export function VotePageClient({ shareId }: Props) {
     !closed &&
     voting.canVote !== false &&
     (voteState === "fresh" || voteState === "resumed" || voteState === "submitted");
-  const needsSignIn = voting.access === "INVITE_ONLY" && !user;
+  const needsSignIn = voting.access !== "LINK" && !user;
   const notInvited =
     !closed && voting.access === "INVITE_ONLY" && !!user && voting.canVote === false;
 
@@ -174,9 +183,15 @@ export function VotePageClient({ shareId }: Props) {
 
       {!closed && needsSignIn && (
         <div className="card stack" style={{ gap: 8 }}>
-          <strong>This board is invite-only.</strong>
+          <strong>
+            {voting.access === "INVITE_ONLY"
+              ? "This board is invite-only."
+              : "Sign in to vote on this board."}
+          </strong>
           <p className="muted small">
-            Sign in with the email that was invited to cast your vote.
+            {voting.access === "INVITE_ONLY"
+              ? "Sign in with the email that was invited to cast your vote."
+              : "The creator asked voters to sign in, so everyone gets exactly one ballot."}
           </p>
           <Link
             href={`/login?next=/v/${voting.shareId}`}
@@ -255,6 +270,11 @@ export function VotePageClient({ shareId }: Props) {
 
           <Ballot items={voting.items} value={allocation} onChange={setAllocation} />
 
+          <p className="hint">
+            Ballots aren&apos;t secret: the board&apos;s creator can see yours right away, and
+            everyone&apos;s ballots are shown with the results once voting closes.
+          </p>
+
           {submitError && <div className="note note-error">{submitError}</div>}
 
           <div className="row" style={{ justifyContent: "flex-end" }}>
@@ -330,6 +350,7 @@ function ResultsSection({ voting }: { voting: VotingDto }) {
                     <img
                       src={item.imageUrl}
                       alt=""
+                      referrerPolicy="no-referrer"
                       width={36}
                       height={36}
                       className="item-thumb"

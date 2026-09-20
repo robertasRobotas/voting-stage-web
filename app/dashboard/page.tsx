@@ -95,7 +95,11 @@ export default function DashboardPage() {
                   </div>
                   <div className="small muted">
                     {v.items.length} {v.items.length === 1 ? "item" : "items"} ·{" "}
-                    {v.access === "LINK" ? "anyone with the link" : "invite-only"} · created{" "}
+                    {v.access === "LINK"
+                      ? "anyone with the link"
+                      : v.access === "SIGNED_IN"
+                        ? "signed-in voters"
+                        : "invite-only"} · created{" "}
                     {new Date(v.createdAt).toLocaleDateString()}
                   </div>
                 </div>

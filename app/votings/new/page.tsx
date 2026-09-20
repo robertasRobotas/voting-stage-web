@@ -140,7 +140,23 @@ export default function NewVotingPage() {
           <span>
             <strong>Anyone with the link.</strong>{" "}
             <span className="muted small">
-              Anonymous voters get a per-browser token so they can&apos;t vote twice.
+              No sign-in needed. Each browser gets one ballot — easy for friends, but someone
+              determined could vote more than once.
+            </span>
+          </span>
+        </label>
+        <label className={`option${access === "SIGNED_IN" ? " is-selected" : ""}`}>
+          <input
+            type="radio"
+            name="access"
+            value="SIGNED_IN"
+            checked={access === "SIGNED_IN"}
+            onChange={() => setAccess("SIGNED_IN")}
+          />
+          <span>
+            <strong>Anyone with the link, signed in.</strong>{" "}
+            <span className="muted small">
+              Voters sign in with Google, so it&apos;s strictly one ballot per account.
             </span>
           </span>
         </label>

@@ -31,6 +31,12 @@ function useOrigin(): string {
   );
 }
 
+const ACCESS_LABEL: Record<VotingAccess, string> = {
+  LINK: "Anyone with the link can vote",
+  SIGNED_IN: "Anyone with the link can vote after signing in",
+  INVITE_ONLY: "Invite-only board",
+};
+
 export function AdminPageClient({ shareId }: Props) {
   const router = useRouter();
   const search = useSearchParams();
@@ -166,7 +172,7 @@ export function AdminPageClient({ shareId }: Props) {
             <StatusBadge status={voting.status} />
           </div>
           <p className="muted small">
-            {voting.access === "LINK" ? "Anyone with the link can vote" : "Invite-only board"}
+            {ACCESS_LABEL[voting.access]}
           </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
@@ -183,7 +189,15 @@ export function AdminPageClient({ shareId }: Props) {
           ) : (
             <button
               className="btn"
-              onClick={() => void callOwnerAction("POST", `/votings/${voting.id}/resume`)}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Resume voting?\n\nThe results have already been visible to everyone. Voters will be able to change their ballots knowing them.",
+                  )
+                ) {
+                  void callOwnerAction("POST", `/votings/${voting.id}/resume`);
+                }
+              }}
             >
               Resume voting
             </button>
@@ -259,6 +273,14 @@ export function AdminPageClient({ shareId }: Props) {
             <p className="muted">No votes yet.</p>
           ) : (
             <LiveResults voting={voting} />
+          )}
+          {!!voting.results.ineligibleVotes && (
+            <p className="hint">
+              {voting.results.ineligibleVotes}{" "}
+              {voting.results.ineligibleVotes === 1 ? "ballot is" : "ballots are"} not counted:
+              cast before you tightened who can vote, by people the current setting doesn&apos;t
+              allow. Loosen the setting (or re-invite them) and they count again.
+            </p>
           )}
         </section>
       )}
@@ -441,6 +463,7 @@ function SettingsSection({
           onChange={(e) => edit({ access: e.target.value as VotingAccess })}
         >
           <option value="LINK">Anyone with the link</option>
+          <option value="SIGNED_IN">Anyone with the link, signed in (one ballot per account)</option>
           <option value="INVITE_ONLY">Invite-only by email</option>
         </select>
       </div>
@@ -456,8 +479,8 @@ function SettingsSection({
             placeholder="alice@example.com, bob@example.com"
           />
           <p className="hint">
-            Newly added emails get an invitation email when you save (if email sending is
-            configured on the server).
+            Only these addresses can vote, after signing in. No email is sent — share the link
+            above with them yourself.
           </p>
         </div>
       )}
@@ -492,6 +515,8 @@ function ItemsSection({
   onFocusChange: (focused: boolean) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const finished = voting.status === "FINISHED";
+  const frozenTitle = finished ? "Resume voting to change items" : undefined;
 
   async function reorder(itemId: string, direction: -1 | 1) {
     const ids = voting.items.map((i) => i.id);
@@ -513,7 +538,14 @@ function ItemsSection({
   }
 
   async function deleteItem(item: VotingItem) {
-    if (!window.confirm(`Remove "${item.title}"?`)) return;
+    const affected = (voting.voters ?? []).filter((v) =>
+      v.allocations.some((a) => a.itemId === item.id),
+    ).length;
+    const warning =
+      affected > 0
+        ? `\n\n${affected} ${affected === 1 ? "voter has" : "voters have"} given it points. Those points are discarded and the voters are not notified.`
+        : "";
+    if (!window.confirm(`Remove "${item.title}"?${warning}`)) return;
     try {
       await api(`/votings/${voting.id}/items/${item.id}`, { method: "DELETE", token });
       onMutated();
@@ -602,6 +634,8 @@ function ItemsSection({
                   </button>
                   <button
                     className="btn btn-ghost btn-sm"
+                    disabled={finished}
+                    title={frozenTitle}
                     onClick={() => {
                       setEditingId(it.id);
                       onFocusChange(true);
@@ -611,8 +645,12 @@ function ItemsSection({
                   </button>
                   <button
                     className="btn btn-ghost btn-sm"
+                    disabled={finished || voting.items.length <= 2}
                     onClick={() => void deleteItem(it)}
-                    title="Remove item"
+                    title={
+                      frozenTitle ??
+                      (voting.items.length <= 2 ? "A board needs at least two items" : "Remove item")
+                    }
                   >
                     Remove
                   </button>
@@ -623,6 +661,12 @@ function ItemsSection({
         ))}
       </ul>
       <hr className="divider" />
+      {finished && (
+        <p className="hint">
+          Items are locked while the voting is finished, so the published results can&apos;t
+          change. Resume voting to edit them.
+        </p>
+      )}
       <AddItemForm
         votingId={voting.id}
         token={token}

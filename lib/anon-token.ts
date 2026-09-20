@@ -6,21 +6,26 @@
  */
 const STORAGE_PREFIX = "voting-stage:anon:";
 
+/** Must match the server's check (`anonTokenSchema`). */
+const VALID_TOKEN = /^[A-Za-z0-9_-]{8,64}$/;
+
 function key(shareId: string): string {
   return `${STORAGE_PREFIX}${shareId}`;
 }
 
 function randomToken(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  // `randomUUID` needs a secure context (https / localhost). Plain-http LAN
+  // testing falls back to getRandomValues, which is available everywhere.
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export function getOrCreateAnonToken(shareId: string): string {
   if (typeof window === "undefined") return "";
   const existing = window.localStorage.getItem(key(shareId));
-  if (existing) return existing;
+  if (existing && VALID_TOKEN.test(existing)) return existing;
   const token = randomToken();
   window.localStorage.setItem(key(shareId), token);
   return token;

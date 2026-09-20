@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { safeNextPath } from "@/lib/safe-next-path";
 
 // Wrapper exists only to provide the Suspense boundary that `useSearchParams`
 // requires when the page is prerendered.
@@ -25,7 +26,7 @@ function LoginFallback() {
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") ?? "/dashboard";
+  const next = safeNextPath(search.get("next"));
 
   const { signInWithGoogle, user, ready, configured } = useAuth();
   const [error, setError] = useState<string | null>(null);

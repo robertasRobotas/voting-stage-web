@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { firebaseConfigured, getFirebase } from "./firebase";
 
 const API_BASE = config.apiUrl;
 
@@ -15,9 +16,25 @@ interface ApiOptions {
   anonToken?: string | null;
 }
 
+/**
+ * The token held in React state can be stale — a laptop that slept past the
+ * one-hour expiry, a throttled background tab. `getIdToken()` returns the
+ * cached token while it's valid and transparently refreshes it when it isn't,
+ * so ask Firebase right before each request and only fall back to the state copy.
+ */
+async function freshToken(fallback: string): Promise<string> {
+  if (!firebaseConfigured) return fallback;
+  try {
+    const current = getFirebase().auth.currentUser;
+    return current ? await current.getIdToken() : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (opts.token) headers["Authorization"] = `Bearer ${opts.token}`;
+  if (opts.token) headers["Authorization"] = `Bearer ${await freshToken(opts.token)}`;
   if (opts.anonToken) headers["X-Anon-Token"] = opts.anonToken;
 
   const res = await fetch(`${API_BASE}${path}`, {

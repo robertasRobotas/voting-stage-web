@@ -2,7 +2,9 @@ export const EUROVISION_POINTS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12] as const;
 export type EurovisionPoint = (typeof EUROVISION_POINTS)[number];
 
 export type VotingStatus = "DRAFT" | "OPEN" | "FINISHED";
-export type VotingAccess = "INVITE_ONLY" | "LINK";
+/** LINK: anyone with the link. SIGNED_IN: anyone, but they must sign in (one
+ *  ballot per account). INVITE_ONLY: only the listed emails, signed in. */
+export type VotingAccess = "LINK" | "SIGNED_IN" | "INVITE_ONLY";
 
 export interface VotingItem {
   id: string;
@@ -31,6 +33,8 @@ export interface VotingDto {
 
 export interface VotingResults {
   totalVotes: number;
+  /** Owner-only: ballots left out because access was tightened after they were cast. */
+  ineligibleVotes?: number;
   perItem: Array<{
     itemId: string;
     totalPoints: number;
