@@ -12,6 +12,14 @@ export const FAQ: Array<{ q: string; a: string }> = [
     a: "A normal poll only counts first choices, so a divisive option can win with 30% of the vote. With ranked points, second and third choices count too, and the winner is the option the whole group is happiest with.",
   },
   {
+    q: "Can I make a tier list with friends?",
+    a: "Yes. Once voting is finished, switch the results from the scoreboard to the tier-list view. Items are sorted into S, A, B, C and D tiers based on everyone's combined points.",
+  },
+  {
+    q: "Is it a game or a decision tool?",
+    a: "Both. The same board works for a serious group decision — a trip destination, a restaurant — and for a ranking game with friends, where the fun is revealing the group's verdict at the end.",
+  },
+  {
     q: "Is it free?",
     a: "Yes. Creating boards and voting are free.",
   },

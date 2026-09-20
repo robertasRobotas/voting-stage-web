@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, siteUrl } from "@/lib/site";
+import { SiteFooter } from "./components/site-footer";
 import { SiteHeader } from "./components/site-header";
 
 const geistSans = Geist({
@@ -31,14 +33,16 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   keywords: [
+    "rank things with friends",
+    "rate anything with friends",
+    "group ranking app",
+    "vote with friends online",
+    "group decision voting app",
+    "tier list with friends",
+    "ranking game",
     "Eurovision-style voting",
-    "Eurovision party voting",
+    "12 points voting game",
     "douze points",
-    "12 points voting",
-    "ranked group voting",
-    "group decision poll",
-    "vote on anything",
-    "online scoreboard",
   ],
   // The social image comes from app/opengraph-image.tsx automatically.
   openGraph: {
@@ -57,6 +61,11 @@ export const metadata: Metadata = {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
   },
 };
+
+// Measurement IDs are public (they're in the page source of any site using GA).
+// Production only, so local development doesn't pollute the statistics.
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-VFF10LT41N";
+const analyticsEnabled = process.env.NODE_ENV === "production";
 
 export const viewport: Viewport = {
   themeColor: [
@@ -78,8 +87,10 @@ export default function RootLayout({
         <AuthProvider>
           <SiteHeader />
           <main className="page">{children}</main>
+          <SiteFooter />
         </AuthProvider>
       </body>
+      {analyticsEnabled && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }

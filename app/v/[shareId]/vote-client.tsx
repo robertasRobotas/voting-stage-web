@@ -11,6 +11,7 @@ import {
   type MyVoteResponse,
   type VotingDto,
 } from "@/lib/types";
+import { TIER_COLORS, buildTierList } from "@/lib/tiers";
 import { Ballot } from "./ballot";
 import { SkeletonRow, Skeleton } from "@/app/components/skeleton";
 import { StatusBadge } from "@/app/components/status-badge";
@@ -300,6 +301,7 @@ export function VotePageClient({ shareId }: Props) {
 
 function ResultsSection({ voting }: { voting: VotingDto }) {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [view, setView] = useState<"scoreboard" | "tiers">("scoreboard");
   const results = voting.results!;
   const maxPoints = Math.max(1, ...results.perItem.map((r) => r.totalPoints));
 
@@ -311,8 +313,31 @@ function ResultsSection({ voting }: { voting: VotingDto }) {
           ({results.totalVotes} {results.totalVotes === 1 ? "ballot" : "ballots"})
         </span>
       </h2>
+      {results.perItem.length > 0 && (
+        <div className="row" style={{ gap: 6 }} role="group" aria-label="Results view">
+          <button
+            type="button"
+            className={`btn btn-sm${view === "scoreboard" ? "" : " btn-ghost"}`}
+            aria-pressed={view === "scoreboard"}
+            onClick={() => setView("scoreboard")}
+          >
+            Scoreboard
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm${view === "tiers" ? "" : " btn-ghost"}`}
+            aria-pressed={view === "tiers"}
+            onClick={() => setView("tiers")}
+          >
+            Tier list
+          </button>
+        </div>
+      )}
+
       {results.perItem.length === 0 ? (
         <p className="muted">No votes yet.</p>
+      ) : view === "tiers" ? (
+        <TierListView voting={voting} />
       ) : (
         <ol className="stack" style={{ listStyle: "none", gap: 8 }}>
           {results.perItem.map((row, idx) => {
@@ -425,6 +450,65 @@ function ResultsSection({ voting }: { voting: VotingDto }) {
         </details>
       )}
     </section>
+  );
+}
+
+/** The group's combined ranking as a classic S–D tier list. */
+function TierListView({ voting }: { voting: VotingDto }) {
+  const tiers = buildTierList(voting.items, voting.results!.perItem);
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      {tiers.map(({ tier, items }) => (
+        <div
+          key={tier}
+          style={{
+            display: "flex",
+            alignItems: "stretch",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            overflow: "hidden",
+            minHeight: 56,
+          }}
+        >
+          <div
+            style={{
+              background: TIER_COLORS[tier],
+              color: "#1a1a1a",
+              width: 56,
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+              fontSize: 22,
+            }}
+          >
+            {tier}
+          </div>
+          <div className="row" style={{ gap: 6, padding: 8, flexWrap: "wrap", flex: 1 }}>
+            {items.map((item) => (
+              <span key={item.id} className="tag" title={`${item.totalPoints} pts`}>
+                {item.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    width={24}
+                    height={24}
+                    style={{ width: 24, height: 24, borderRadius: 4, objectFit: "cover", marginRight: 6, verticalAlign: "middle" }}
+                  />
+                )}
+                {item.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="hint">
+        Tiers compare each item with the winner: S is within 20% of the top score, D is under 20%.
+      </p>
+    </div>
   );
 }
 

@@ -57,9 +57,10 @@ export default async function IdeaPage({ params }: PageProps) {
           "@type": "BreadcrumbList",
           itemListElement: [
             { "@type": "ListItem", position: 1, name: SITE_NAME, item: url },
+            { "@type": "ListItem", position: 2, name: "Ideas", item: `${url}/ideas` },
             {
               "@type": "ListItem",
-              position: 2,
+              position: 3,
               name: useCase.label,
               item: `${url}/ideas/${useCase.slug}`,
             },
@@ -69,7 +70,7 @@ export default async function IdeaPage({ params }: PageProps) {
 
       <header className="stack" style={{ gap: 14 }}>
         <nav className="small muted" aria-label="Breadcrumb">
-          <Link href="/">{SITE_NAME}</Link> / {useCase.label}
+          <Link href="/">{SITE_NAME}</Link> / <Link href="/ideas">Ideas</Link> / {useCase.label}
         </nav>
         <h1 className="page-title" style={{ fontSize: "clamp(30px, 5vw, 42px)" }}>
           <span aria-hidden>{useCase.emoji}</span> {useCase.heading}
@@ -124,6 +125,29 @@ export default async function IdeaPage({ params }: PageProps) {
           ))}
         </ul>
       </section>
+
+      {useCase.faq && (
+        <section className="stack" style={{ gap: 10 }}>
+          <JsonLd
+            data={{
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: useCase.faq.map((f) => ({
+                "@type": "Question",
+                name: f.q,
+                acceptedAnswer: { "@type": "Answer", text: f.a },
+              })),
+            }}
+          />
+          <h2 className="section-title">Questions</h2>
+          {useCase.faq.map((f) => (
+            <details key={f.q} className="card">
+              <summary style={{ fontWeight: 600, cursor: "pointer" }}>{f.q}</summary>
+              <p className="muted" style={{ marginTop: 8 }}>{f.a}</p>
+            </details>
+          ))}
+        </section>
+      )}
 
       <section className="stack" style={{ gap: 12 }}>
         <h2 className="section-title">More things to vote on</h2>

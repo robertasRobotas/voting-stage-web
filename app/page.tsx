@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HomeCta } from "./components/home-cta";
 import { JsonLd } from "./components/json-ld";
 import { FAQ } from "@/lib/faq";
+import { GUIDES } from "@/lib/guides";
 import { DISCLAIMER, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, siteUrl } from "@/lib/site";
 import { USE_CASES } from "@/lib/use-cases";
 
@@ -74,12 +75,13 @@ export default function Home() {
           className="page-title"
           style={{ fontSize: "clamp(38px, 7vw, 58px)", maxWidth: 760, margin: "0 auto" }}
         >
-          Vote on anything like it&apos;s <em style={{ color: "var(--primary)" }}>Eurovision</em>.
+          Rank anything with friends like it&apos;s{" "}
+          <em style={{ color: "var(--primary)" }}>Eurovision</em>.
         </h1>
-        <p className="muted" style={{ fontSize: 17, maxWidth: 620, margin: "18px auto 30px" }}>
-          Free Eurovision-style voting for any group decision. Add your contenders, share one
-          link, and let every voter hand out their 1 to 8, 10 and 12 points. Douze points
-          settles it.
+        <p className="muted" style={{ fontSize: 17, maxWidth: 640, margin: "18px auto 30px" }}>
+          The free group ranking app. Vote with friends online on where to travel, what to
+          watch, where to eat — or who makes the best pasta. Everyone hands out 1 to 8, 10 and
+          12 points, and douze points settles it.
         </p>
 
         <div className="row" style={{ justifyContent: "center" }}>
@@ -99,6 +101,19 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="stack" style={{ gap: 10, maxWidth: 760 }}>
+        <h2 className="section-title" style={{ fontSize: 24 }}>
+          One tool for group decisions and ranking games
+        </h2>
+        <p className="muted" style={{ lineHeight: 1.65 }}>
+          Some votes matter: the trip destination, the restaurant, the film. Some are just for
+          fun: a ranking game on a video call, a tier list with friends, a &quot;who is the
+          best&quot; round at a party. Both work the same way here. You add the options, your
+          group rates them by giving out points, and the combined ranking is revealed when you
+          close the vote — as a scoreboard or as an S-to-D tier list.
+        </p>
+      </section>
+
       <section className="stack" style={{ gap: 16 }}>
         <h2 className="section-title" style={{ fontSize: 24 }}>How Eurovision-style voting works</h2>
         <div
@@ -116,7 +131,7 @@ export default function Home() {
 
       <section className="stack" style={{ gap: 16 }}>
         <div>
-          <h2 className="section-title" style={{ fontSize: 24 }}>What will you put to the vote?</h2>
+          <h2 className="section-title" style={{ fontSize: 24 }}>What will you rank with your friends?</h2>
           <p className="muted" style={{ marginTop: 6, maxWidth: 640 }}>
             The 12-point ladder isn&apos;t just for songs. It&apos;s the fairest quick way for a
             group to choose between more than two things.
@@ -170,6 +185,10 @@ export default function Home() {
             title="Nothing to install"
             body="It runs in the browser on any phone. Share a link or a QR code and people are voting in seconds."
           />
+          <Feature
+            title="Scoreboard or tier list"
+            body="See the result as a Eurovision scoreboard, or switch to an S-to-D tier list built from everyone's votes."
+          />
         </div>
       </section>
 
@@ -181,6 +200,29 @@ export default function Home() {
             <p className="muted" style={{ marginTop: 8 }}>{f.a}</p>
           </details>
         ))}
+      </section>
+
+      <section className="stack" style={{ gap: 16 }}>
+        <h2 className="section-title" style={{ fontSize: 24 }}>Guides</h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+            gap: 14,
+          }}
+        >
+          {GUIDES.map((g) => (
+            <Link
+              key={g.slug}
+              href={`/guides/${g.slug}`}
+              className="card stack"
+              style={{ gap: 6, color: "inherit", textDecoration: "none" }}
+            >
+              <h3 className="section-title" style={{ fontSize: 17 }}>{g.title}</h3>
+              <p className="muted" style={{ fontSize: 14 }}>{g.excerpt}</p>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section style={{ textAlign: "center" }}>

@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { SITE_NAME } from "@/lib/site";
 
-export const alt = "Voting Stage — vote on anything, Eurovision-style";
+export const alt = "Voting Stage — rank anything with friends, Eurovision-style";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -27,10 +27,10 @@ export default function OpenGraphImage() {
           {SITE_NAME.toUpperCase()}
         </div>
         <div style={{ display: "flex", fontSize: 84, fontWeight: 700, lineHeight: 1.08, marginTop: 18 }}>
-          Vote on anything like it&apos;s Eurovision.
+          Rank anything with friends like it&apos;s Eurovision.
         </div>
         <div style={{ display: "flex", fontSize: 34, marginTop: 24, color: "#cbbfae" }}>
-          Add contenders. Share one link. Douze points decides.
+          Movies, trips, dinner, tier lists. Douze points decides.
         </div>
         <div style={{ display: "flex", gap: 14, marginTop: 52 }}>
           {POINTS.map((p) => (

@@ -15,10 +15,10 @@ export function siteUrl(): string {
 
 export const SITE_NAME = "Voting Stage";
 
-export const SITE_TAGLINE = "Vote on anything, Eurovision-style";
+export const SITE_TAGLINE = "Rank anything with friends, Eurovision-style";
 
 export const SITE_DESCRIPTION =
-  "Free Eurovision-style voting for anything. Add your contenders, share one link, and let everyone hand out 1–8, 10 and 12 points. Douze points decides movie night, dinner, baby names and more.";
+  "Free group ranking app. Rate and rank anything with friends online — movies, trips, restaurants, tier lists — with Eurovision-style 12 points.";
 
 /** Descriptive use of the name only — say so wherever the contest is mentioned. */
 export const DISCLAIMER =
